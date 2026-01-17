@@ -43,6 +43,14 @@ const Markets = lazy(() => import("./pages/Markets"));
 const AIChat = lazy(() => import("./pages/AIChat"));
 const NotFound = lazy(() => import("./pages/NotFound"));
 
+// Admin Pages
+const AdminDashboard = lazy(() => import("./pages/admin/AdminDashboard"));
+const AdminUsers = lazy(() => import("./pages/admin/AdminUsers"));
+const AdminSystem = lazy(() => import("./pages/admin/AdminSystem"));
+const AdminAuditLogs = lazy(() => import("./pages/admin/AdminAuditLogs"));
+const AdminAICosts = lazy(() => import("./pages/admin/AdminAICosts"));
+
+
 const queryClient = new QueryClient();
 
 /**
@@ -102,6 +110,13 @@ const App = () => (
 
                         {/* Auth Route (Redirects if already logged in) */}
                         <Route path="/auth" element={<AuthRedirect />} />
+
+                        {/* Admin Routes */}
+                        <Route path="/admin" element={<AdminDashboard />} />
+                        <Route path="/admin/users" element={<AdminUsers />} />
+                        <Route path="/admin/system" element={<AdminSystem />} />
+                        <Route path="/admin/audit-logs" element={<AdminAuditLogs />} />
+                        <Route path="/admin/ai-costs" element={<AdminAICosts />} />
 
                         {/* Protected Routes Wrapper */}
                         <Route element={<ProtectedRoute />}>
