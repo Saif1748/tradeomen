@@ -9,7 +9,8 @@ import {
   Strategy, 
   Clock, 
   Sparkle, 
-  X
+  X,
+  LockKey // ✅ Switched to 'LockKey' for a premium aesthetic
 } from "@phosphor-icons/react";
 import { DateRange } from "react-day-picker";
 import { format } from "date-fns";
@@ -19,12 +20,13 @@ import { toast } from "sonner";
 // Components
 import DashboardLayout from "@/components/dashboard/DashboardLayout";
 import PageHeader from "@/components/dashboard/PageHeader";
-import MobileSidebar from "@/components/dashboard/MobileSidebar"; // ✅ Added missing import
+import MobileSidebar from "@/components/dashboard/MobileSidebar";
 import OverviewTab from "@/components/reports/OverviewTab";
 import TradeAnalysisTab from "@/components/reports/TradeAnalysisTab";
 import StrategyAnalysisTab from "@/components/reports/StrategyAnalysisTab";
 import TimeAnalysisTab from "@/components/reports/TimeAnalysisTab";
 import AIInsightsTab from "@/components/reports/AIInsightsTab";
+import { FeatureGate } from "@/components/auth/FeatureGate"; 
 
 // UI Components
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -53,6 +55,7 @@ import { Calendar } from "@/components/ui/calendar";
 import { useReports, ReportTab } from "@/hooks/use-reports";
 import { useStrategies } from "@/hooks/use-strategies";
 import { useCurrency } from "@/hooks/use-currency";
+import { useFeatureAccess } from "@/hooks/useFeatureAccess"; 
 
 const Reports = () => {
   // --- 1. State Management ---
@@ -66,12 +69,12 @@ const Reports = () => {
   
   // Filters Sheet State
   const [filterSheetOpen, setFilterSheetOpen] = useState(false);
-  // ✅ FIX: Mobile Sidebar State (Was missing in previous version)
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   // Hook Initialization
   const { symbol, format: formatCurrency } = useCurrency();
   const { strategyNames } = useStrategies();
+  const { isPro } = useFeatureAccess(); 
 
   // Reports Data Fetching
   const { data, isLoading, isError } = useReports(activeTab, {
@@ -99,16 +102,41 @@ const Reports = () => {
     setDateRange(undefined);
   };
 
+  /**
+   * Helper to render consistent, professional tabs with the Lock badge.
+   */
+  const renderTabTrigger = (value: string, label: string, icon: any, locked: boolean) => {
+    const Icon = icon;
+    return (
+      <TabsTrigger 
+        value={value}
+        className="group relative h-10 rounded-lg px-2 sm:px-4 text-xs sm:text-sm font-medium transition-all duration-300 
+          data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-md data-[state=active]:shadow-primary/20
+          hover:bg-secondary/60 data-[state=active]:hover:bg-primary border border-transparent data-[state=active]:border-primary/10"
+      >
+        <div className="flex items-center justify-center gap-2 relative z-10">
+          <Icon weight="duotone" className={`w-4 h-4 ${locked ? 'opacity-70' : ''}`} />
+          <span className={locked ? "opacity-80" : ""}>{label}</span>
+          
+          {/* Aesthetic Lock Badge: Matches Landing Page/Pricing Design */}
+          {locked && (
+            <div className="ml-0.5 flex items-center justify-center bg-background/20 rounded-full p-0.5 backdrop-blur-[1px] border border-white/10 group-data-[state=active]:border-white/20">
+              <LockKey weight="fill" className="w-2.5 h-2.5 opacity-80" />
+            </div>
+          )}
+        </div>
+      </TabsTrigger>
+    );
+  };
+
   return (
     <DashboardLayout>
       <PageHeader
         title="Reports"
         icon={<ChartLine weight="duotone" className="w-6 h-6 text-primary" />}
-        // ✅ FIX: Wire up the mobile menu trigger
         onMobileMenuOpen={() => setMobileMenuOpen(true)}
       />
 
-      {/* ✅ FIX: Add Mobile Sidebar Component */}
       <MobileSidebar 
         open={mobileMenuOpen} 
         onClose={() => setMobileMenuOpen(false)} 
@@ -116,11 +144,11 @@ const Reports = () => {
 
       <div className="px-4 sm:px-6 lg:px-8 pb-6 pt-4 space-y-4 sm:space-y-6">
         
-        {/* Filters Bar - Desktop */}
+        {/* Filters Bar - Desktop (Refined "Card" Look) */}
         <div className="hidden sm:flex flex-wrap items-center gap-3">
           <Popover>
             <PopoverTrigger asChild>
-              <Button variant="outline" className="gap-2 bg-secondary/30 border-border hover:border-primary/30 transition-all font-medium text-sm">
+              <Button variant="outline" className="gap-2 bg-card/50 border-border/60 hover:border-primary/30 hover:bg-card transition-all font-medium text-sm shadow-sm">
                 <CalendarBlank weight="duotone" className="w-4 h-4 text-primary" />
                 {dateRangeLabel}
               </Button>
@@ -138,7 +166,7 @@ const Reports = () => {
           </Popover>
 
           <Select value={instrumentFilter} onValueChange={setInstrumentFilter}>
-            <SelectTrigger className="w-[150px] bg-secondary/30 border-border hover:border-primary/30 transition-all">
+            <SelectTrigger className="w-[150px] bg-card/50 border-border/60 hover:border-primary/30 hover:bg-card transition-all shadow-sm">
               <div className="flex items-center gap-2">
                 <Funnel weight="duotone" className="w-4 h-4 text-primary" />
                 <SelectValue placeholder="Instrument" />
@@ -154,7 +182,7 @@ const Reports = () => {
           </Select>
 
           <Select value={strategyFilter} onValueChange={setStrategyFilter}>
-            <SelectTrigger className="w-[150px] bg-secondary/30 border-border hover:border-primary/30 transition-all">
+            <SelectTrigger className="w-[150px] bg-card/50 border-border/60 hover:border-primary/30 hover:bg-card transition-all shadow-sm">
               <SelectValue placeholder="Strategy" />
             </SelectTrigger>
             <SelectContent className="bg-card border-border">
@@ -172,11 +200,11 @@ const Reports = () => {
           )}
 
           <div className="ml-auto flex gap-2">
-            <Button onClick={() => handleExport("csv")} variant="outline" size="sm" className="gap-2 bg-secondary/20 border-border/50 h-9 font-semibold">
+            <Button onClick={() => handleExport("csv")} variant="outline" size="sm" className="gap-2 bg-card/50 border-border/60 hover:bg-card hover:border-primary/20 h-9 font-semibold shadow-sm">
               <Export weight="bold" className="w-3.5 h-3.5" />
               CSV
             </Button>
-            <Button onClick={() => handleExport("pdf")} variant="outline" size="sm" className="gap-2 bg-secondary/20 border-border/50 h-9 font-semibold">
+            <Button onClick={() => handleExport("pdf")} variant="outline" size="sm" className="gap-2 bg-card/50 border-border/60 hover:bg-card hover:border-primary/20 h-9 font-semibold shadow-sm">
               <Export weight="bold" className="w-3.5 h-3.5" />
               PDF
             </Button>
@@ -190,7 +218,7 @@ const Reports = () => {
               <Button 
                 variant="outline" 
                 size="sm"
-                className="flex-1 justify-start gap-2 bg-secondary/30 border-border/50 text-[10px] h-9"
+                className="flex-1 justify-start gap-2 bg-card/50 border-border/60 text-[10px] h-9"
               >
                 <CalendarBlank weight="duotone" className="w-3.5 h-3.5 text-primary" />
                 {dateRangeLabel}
@@ -210,7 +238,7 @@ const Reports = () => {
             variant="outline"
             size="sm"
             onClick={() => setFilterSheetOpen(true)}
-            className={`gap-1.5 bg-secondary/30 border-border/50 h-9 ${hasActiveFilters ? 'text-primary border-primary/50' : ''}`}
+            className={`gap-1.5 bg-card/50 border-border/60 h-9 ${hasActiveFilters ? 'text-primary border-primary/50' : ''}`}
           >
             <Funnel weight={hasActiveFilters ? "fill" : "duotone"} className="w-4 h-4" />
             {hasActiveFilters && (
@@ -221,86 +249,52 @@ const Reports = () => {
           </Button>
         </div>
 
-        {/* Tabs System */}
+        {/* Tabs System - Professional Floating Design */}
         <Tabs value={activeTab} onValueChange={(val) => setActiveTab(val as ReportTab)} className="w-full">
-          <div className="sticky top-0 z-10 bg-background/95 backdrop-blur-sm pb-2 -mx-4 px-4 sm:mx-0 sm:px-0 sm:static sm:bg-transparent">
-            <TabsList className="w-full h-auto p-1.5 bg-secondary/30 border border-border/40 rounded-2xl grid grid-cols-2 sm:grid-cols-5 gap-2 backdrop-blur-md">
-              <TabsTrigger 
-                value="overview"
-                className="group relative rounded-xl px-2 sm:px-3 py-2.5 text-xs sm:text-sm font-medium transition-all duration-300 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground"
-              >
-                <div className="flex items-center justify-center gap-2">
-                  <SquaresFour weight="duotone" className="w-4 h-4 hidden sm:block" />
-                  <span>Overview</span>
-                </div>
-              </TabsTrigger>
-              
-              <TabsTrigger 
-                value="analysis"
-                className="group relative rounded-xl px-2 sm:px-3 py-2.5 text-xs sm:text-sm font-medium transition-all duration-300 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground"
-              >
-                <div className="flex items-center justify-center gap-2">
-                  <ChartBar weight="duotone" className="w-4 h-4 hidden sm:block" />
-                  <span>Trades</span>
-                </div>
-              </TabsTrigger>
-              
-              <TabsTrigger 
-                value="strategy"
-                className="group relative rounded-xl px-2 sm:px-3 py-2.5 text-xs sm:text-sm font-medium transition-all duration-300 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground"
-              >
-                <div className="flex items-center justify-center gap-2">
-                  <Strategy weight="duotone" className="w-4 h-4 hidden sm:block" />
-                  <span>Strategies</span>
-                </div>
-              </TabsTrigger>
-              
-              <TabsTrigger 
-                value="time"
-                className="group relative rounded-xl px-2 sm:px-3 py-2.5 text-xs sm:text-sm font-medium transition-all duration-300 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground"
-              >
-                <div className="flex items-center justify-center gap-2">
-                  <Clock weight="duotone" className="w-4 h-4 hidden sm:block" />
-                  <span>Time</span>
-                </div>
-              </TabsTrigger>
-
-              <TabsTrigger 
-                value="ai-insights"
-                className="group relative rounded-xl px-2 sm:px-3 py-2.5 text-xs sm:text-sm font-medium transition-all duration-300 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground"
-              >
-                <div className="flex items-center justify-center gap-2">
-                  <Sparkle weight="fill" className="w-4 h-4 hidden sm:block" />
-                  <span>Insights</span>
-                </div>
-              </TabsTrigger>
+          <div className="sticky top-0 z-20 pb-4 -mx-4 px-4 sm:mx-0 sm:px-0 bg-background/80 backdrop-blur-sm sm:static sm:bg-transparent">
+            {/* Glassmorphism Floating Tab List */}
+            <TabsList className="w-full h-auto p-1.5 bg-background/50 border border-border/60 rounded-xl grid grid-cols-2 sm:grid-cols-5 gap-1.5 shadow-sm backdrop-blur-xl">
+              {renderTabTrigger("overview", "Overview", SquaresFour, false)}
+              {renderTabTrigger("analysis", "Trades", ChartBar, !isPro)}
+              {renderTabTrigger("strategy", "Strategies", Strategy, !isPro)}
+              {renderTabTrigger("time", "Time", Clock, !isPro)}
+              {renderTabTrigger("ai-insights", "Insights", Sparkle, !isPro)}
             </TabsList>
           </div>
 
           <motion.div 
             key={activeTab}
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.3 }}
-            className="mt-4 sm:mt-6"
+            initial={{ opacity: 0, y: 10, scale: 0.99 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            transition={{ duration: 0.3, ease: "easeOut" }}
+            className="mt-2"
           >
-            {/* Note: data passed here is potentially cached via TanStack Query.
-              Each component below should handle 'isLoading' gracefullly.
-            */}
             <TabsContent value="overview" className="mt-0 outline-none">
               <OverviewTab data={data} isLoading={isLoading} isError={isError} />
             </TabsContent>
+            
             <TabsContent value="analysis" className="mt-0 outline-none">
-              <TradeAnalysisTab data={data} isLoading={isLoading} isError={isError} />
+              <FeatureGate feature="isPro" label="Unlock Trade Analytics">
+                <TradeAnalysisTab data={data} isLoading={isLoading} isError={isError} />
+              </FeatureGate>
             </TabsContent>
+            
             <TabsContent value="strategy" className="mt-0 outline-none">
-              <StrategyAnalysisTab data={data} isLoading={isLoading} isError={isError} />
+              <FeatureGate feature="isPro" label="Unlock Strategy Performance">
+                <StrategyAnalysisTab data={data} isLoading={isLoading} isError={isError} />
+              </FeatureGate>
             </TabsContent>
+            
             <TabsContent value="time" className="mt-0 outline-none">
-              <TimeAnalysisTab data={data} isLoading={isLoading} isError={isError} />
+              <FeatureGate feature="isPro" label="Unlock Time Analysis">
+                <TimeAnalysisTab data={data} isLoading={isLoading} isError={isError} />
+              </FeatureGate>
             </TabsContent>
+            
             <TabsContent value="ai-insights" className="mt-0 outline-none">
-              <AIInsightsTab data={data} isLoading={isLoading} />
+              <FeatureGate feature="isPro" label="Unlock AI Insights">
+                <AIInsightsTab data={data} isLoading={isLoading} />
+              </FeatureGate>
             </TabsContent>
           </motion.div>
         </Tabs>

@@ -11,8 +11,9 @@ import { SettingsProvider } from "@/contexts/SettingsContext";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { useAuth } from "@/hooks/use-Auth";
 import { ModalProvider } from "@/contexts/ModalContext";
-import { CurrencyProvider } from "@/contexts/CurrencyContext"; // ✅ Import CurrencyProvider
+import { CurrencyProvider } from "@/contexts/CurrencyContext";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
+import { ProtectedAdminRoute } from "@/components/admin/ProtectedAdminRoute";
 
 // Analytics
 import { PostHogProvider } from "@/providers/PostHogProvider";
@@ -50,7 +51,6 @@ const AdminSystem = lazy(() => import("./pages/admin/AdminSystem"));
 const AdminAuditLogs = lazy(() => import("./pages/admin/AdminAuditLogs"));
 const AdminAICosts = lazy(() => import("./pages/admin/AdminAICosts"));
 
-
 const queryClient = new QueryClient();
 
 /**
@@ -71,12 +71,10 @@ const PageLoader = () => (
 const AuthRedirect = () => {
   const { session, loading } = useAuth();
   
-  // Only show the global loader if we haven't even checked the session yet.
   if (loading) {
     return <PageLoader />;
   }
   
-  // If session exists, bypass auth page immediately.
   return session ? <Navigate to="/dashboard" replace /> : <Auth />;
 };
 
@@ -86,7 +84,6 @@ const App = () => (
       <PostHogProvider>
         <AuthProvider>
           <SettingsProvider>
-            {/* ✅ Added CurrencyProvider here. It wraps the app so StrategyDetail can use it. */}
             <CurrencyProvider>
               <TooltipProvider>
                 <Toaster />
@@ -94,7 +91,8 @@ const App = () => (
                 <BrowserRouter>
                   <PageViewTracker />
                   
-                  {/* ModalProvider inside Router for navigation access */}
+                  {/* ModalProvider wraps the Suspense and Routes.
+                      This allows the UpgradeModal to be triggered globally. */}
                   <ModalProvider>
                     <Suspense fallback={<PageLoader />}>
                       <Routes>
@@ -108,17 +106,19 @@ const App = () => (
                         <Route path="/docs" element={<Documentation />} />
                         <Route path="/docs/:slug" element={<DocArticle />} />
 
-                        {/* Auth Route (Redirects if already logged in) */}
+                        {/* Auth Route */}
                         <Route path="/auth" element={<AuthRedirect />} />
 
-                        {/* Admin Routes */}
-                        <Route path="/admin" element={<AdminDashboard />} />
-                        <Route path="/admin/users" element={<AdminUsers />} />
-                        <Route path="/admin/system" element={<AdminSystem />} />
-                        <Route path="/admin/audit-logs" element={<AdminAuditLogs />} />
-                        <Route path="/admin/ai-costs" element={<AdminAICosts />} />
+                        {/* Protected Admin Routes */}
+                        <Route element={<ProtectedAdminRoute />}>
+                          <Route path="/admin" element={<AdminDashboard />} />
+                          <Route path="/admin/users" element={<AdminUsers />} />
+                          <Route path="/admin/system" element={<AdminSystem />} />
+                          <Route path="/admin/audit-logs" element={<AdminAuditLogs />} />
+                          <Route path="/admin/ai-costs" element={<AdminAICosts />} />
+                        </Route>
 
-                        {/* Protected Routes Wrapper */}
+                        {/* Protected App Routes */}
                         <Route element={<ProtectedRoute />}>
                           <Route path="/dashboard" element={<Dashboard />} />
                           <Route path="/trades" element={<Trades />} />

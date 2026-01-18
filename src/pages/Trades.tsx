@@ -1,5 +1,16 @@
 import { useState, useMemo } from "react";
-import { Plus, Export, DotsThreeVertical, Funnel, CalendarBlank, ChartLineUp, Spinner, CaretLeft, CaretRight } from "@phosphor-icons/react";
+import { 
+  Plus, 
+  Export, 
+  DotsThreeVertical, 
+  Funnel, 
+  CalendarBlank, 
+  ChartLineUp, 
+  Spinner, 
+  CaretLeft, 
+  CaretRight,
+  Lock // ✅ Added Lock icon for feature gating
+} from "@phosphor-icons/react";
 import { DateRange } from "react-day-picker";
 import { format } from "date-fns";
 import { toast } from "sonner";
@@ -43,13 +54,14 @@ import { Calendar } from "@/components/ui/calendar";
 // ✅ Hooks & API
 import { useTrades, UITrade } from "@/hooks/use-trades";
 import { tradesApi } from "@/services/api/modules/trades";
-// ✅ Fix: Import from the new hook file
 import { useCurrency } from "@/hooks/use-currency";
+import { useFeatureAccess } from "@/hooks/useFeatureAccess"; // ✅ Import Feature Access
+import { useModal } from "@/contexts/ModalContext"; // ✅ Import Modal Context
 
 const Trades = () => {
   // --- 1. Pagination & Data ---
   const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useState(25); // ✅ Defaulting to 25 per your request
+  const [pageSize, setPageSize] = useState(25);
 
   const { 
     trades, 
@@ -63,8 +75,11 @@ const Trades = () => {
     deleteTrade 
   } = useTrades({ page, limit: pageSize });
 
-  // ✅ Fix: Ensure Currency Hook is initialized on the page
   const { symbol, format: formatCurrency } = useCurrency();
+  
+  // ✅ Feature Access Logic
+  const { isPro } = useFeatureAccess();
+  const { triggerUpgrade } = useModal();
 
   // --- 2. Local UI State ---
   const [searchQuery, setSearchQuery] = useState("");
@@ -78,8 +93,6 @@ const Trades = () => {
   const [sortDirection, setSortDirection] = useState<"asc" | "desc">("desc");
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
-
-
   // --- 3. Modals & Selection ---
   const [selectedTrade, setSelectedTrade] = useState<UITrade | null>(null);
   const [detailOpen, setDetailOpen] = useState(false);
@@ -87,8 +100,6 @@ const Trades = () => {
   const [editModalOpen, setEditModalOpen] = useState(false);
   const [tradeToEdit, setTradeToEdit] = useState<UITrade | null>(null);
   const [filterSheetOpen, setFilterSheetOpen] = useState(false);
-
-
 
   // --- 4. Filtering & Sorting ---
   const filteredTrades = useMemo(() => {
@@ -131,7 +142,6 @@ const Trades = () => {
           comparison = (a.pnl || 0) - (b.pnl || 0);
           break;
         case "rMultiple":
-          // Check if property exists to be safe
           comparison = (a.rMultiple || 0) - (b.rMultiple || 0);
           break;
         default:
@@ -143,12 +153,10 @@ const Trades = () => {
     return result;
   }, [trades, searchQuery, sideFilter, typeFilter, dateRange, sortField, sortDirection]);
 
-
-
   // --- 5. Event Handlers ---
   const handlePageSizeChange = (val: string) => {
     setPageSize(Number(val));
-    setPage(1); // ✅ Reset to page 1 when limit changes to avoid out-of-bounds
+    setPage(1); 
   };
 
   const handleSort = (field: string) => {
@@ -196,6 +204,12 @@ const Trades = () => {
   };
 
   const handleExport = async () => {
+    // ✅ Logic: Intercept export for Free users
+    if (!isPro) {
+      triggerUpgrade("Exporting trade history is a Pro feature.");
+      return;
+    }
+
     try {
         toast.info("Preparing export...");
         const blob = await tradesApi.export();
@@ -225,8 +239,6 @@ const Trades = () => {
       : format(dateRange.from, "MMM d, yyyy")
     : "Select dates";
 
-
-
   return (
     <DashboardLayout>
       <PageHeader
@@ -235,14 +247,20 @@ const Trades = () => {
         onMobileMenuOpen={() => setMobileMenuOpen(true)}
       >
         <div className="hidden sm:flex items-center gap-3">
+            {/* ✅ Export Button: Conditionally rendered with Lock or Export icon */}
             <Button
                 variant="outline"
-                className="gap-2 bg-secondary/50 border-border/50 hover:bg-secondary"
+                className="gap-2 bg-secondary/50 border-border/50 hover:bg-secondary transition-all"
                 onClick={handleExport}
             >
-                <Export weight="regular" className="w-4 h-4" />
-                Export
+                {isPro ? (
+                  <Export weight="regular" className="w-4 h-4" />
+                ) : (
+                  <Lock weight="bold" className="w-4 h-4 text-muted-foreground" />
+                )}
+                <span className={!isPro ? "text-muted-foreground" : ""}>Export</span>
             </Button>
+            
             <Button
                 onClick={() => setAddModalOpen(true)}
                 className="gap-2 glow-button text-white"
@@ -260,14 +278,16 @@ const Trades = () => {
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="bg-card border-border">
             <DropdownMenuItem onClick={handleExport}>
-              <Export weight="regular" className="w-4 h-4 mr-2" />
+              {isPro ? (
+                 <Export weight="regular" className="w-4 h-4 mr-2" />
+              ) : (
+                 <Lock weight="bold" className="w-4 h-4 mr-2 text-muted-foreground" />
+              )}
               Export CSV
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
       </PageHeader>
-
-
 
       <div className="px-4 sm:px-6 lg:px-8 pb-6 pt-4 space-y-4 sm:space-y-6">
         
@@ -398,7 +418,7 @@ const Trades = () => {
         <Plus weight="bold" className="w-6 h-6" />
       </button>
 
-      {/* Filter Sheet, Detail Sheet & Modals remain identical ... */}
+      {/* Filter Sheet, Detail Sheet & Modals */}
       <Sheet open={filterSheetOpen} onOpenChange={setFilterSheetOpen}>
         <SheetContent side="bottom" className="bg-card border-border rounded-t-2xl">
           <SheetHeader className="pb-4">

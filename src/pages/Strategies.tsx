@@ -32,15 +32,18 @@ import { Skeleton } from "@/components/ui/skeleton";
 
 // Hooks & Context
 import { useStrategies, UIStrategy } from "@/hooks/use-strategies";
-import { useAuth } from "@/hooks/use-Auth";
 import { useModal } from "@/contexts/ModalContext"; 
 import { useCurrency } from "@/hooks/use-currency";
+import { useFeatureAccess } from "@/hooks/useFeatureAccess"; // ✅ Import Feature Access
 
 const Strategies = () => {
   // --- 1. Real Data Hooks ---
   const { strategies: realStrategies, isLoading, createStrategy, deleteStrategy, updateStrategy } = useStrategies();
-  const { profile } = useAuth();
-  const { openUpgradeModal } = useModal();
+  
+  // ✅ Use standard feature access hooks instead of manual profile checks
+  const { isPro, isPremium } = useFeatureAccess();
+  const { triggerUpgrade } = useModal(); // ✅ Use triggerUpgrade instead of openUpgradeModal
+  
   const { format, symbol } = useCurrency();
 
   // --- 2. State ---
@@ -118,13 +121,21 @@ const Strategies = () => {
 
   // --- 5. Handlers ---
   const handleCreateClick = () => {
-    const plan = (profile?.plan_tier || "FREE").toUpperCase();
-    const limit = (plan === "PRO" || plan === "PREMIUM") ? 1000 : 1;
-    
-    if (strategies.length >= limit) {
-      openUpgradeModal(`Free plan is limited to ${limit} strategy. Upgrade for unlimited.`);
+    const currentCount = strategies.length;
+
+    // ✅ Case 1: Free Plan Limit (1 Strategy)
+    if (!isPro && currentCount >= 1) {
+      triggerUpgrade("Free plan is limited to 1 strategy. Upgrade to Pro to create more.");
       return;
     }
+
+    // ✅ Case 2: Pro Plan Limit (10 Strategies)
+    if (isPro && !isPremium && currentCount >= 5) {
+      triggerUpgrade("Pro plan is limited to 10 strategies. Upgrade to Premium for unlimited.");
+      return;
+    }
+
+    // If Premium or within limits
     setCreateModalOpen(true);
   };
 
@@ -140,9 +151,6 @@ const Strategies = () => {
   };
 
   const handleUpdateStrategy = (updatedData: any) => {
-    // Map the UI Strategy format back to what the hook expects
-    // Note: The EditStrategyModal likely returns the legacy 'Strategy' shape
-    // We must adapt it or pass just the changed fields.
     if (!selectedStrategy) return;
 
     const payload = {
@@ -157,10 +165,7 @@ const Strategies = () => {
 
     updateStrategy({ id: selectedStrategy.id, data: payload }, {
         onSuccess: () => {
-            // Optimistically update the selected view or just close/refresh
-            // Since we invalidate queries, the data will refresh automatically.
             setEditModalOpen(false);
-            // We can optionally keep the detail view open, it will re-render with new data
         }
     });
   };
@@ -203,7 +208,7 @@ const Strategies = () => {
           open={editModalOpen}
           onOpenChange={setEditModalOpen}
           strategy={selectedStrategy}
-          onUpdateStrategy={handleUpdateStrategy} // ✅ Connected to Hook
+          onUpdateStrategy={handleUpdateStrategy}
         />
         <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
           <AlertDialogContent>

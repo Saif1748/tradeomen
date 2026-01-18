@@ -1,19 +1,16 @@
 import React, { createContext, useContext, useState, ReactNode } from "react";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
-import { Button } from "@/components/ui/button";
 import { useNavigate } from "react-router-dom";
-import { Crown } from "lucide-react";
+import { UpgradeModal } from "@/components/modals/UpgradeModal";
 
+/**
+ * ModalContext Interface
+ * Centralizes management for high-conversion application events.
+ */
 interface ModalContextType {
-  openUpgradeModal: (message?: string) => void;
-  closeModal: () => void;
+  isUpgradeModalOpen: boolean;
+  setUpgradeModalOpen: (open: boolean) => void;
+  triggerUpgrade: (message?: string) => void;
+  closeAllModals: () => void;
 }
 
 const ModalContext = createContext<ModalContextType | undefined>(undefined);
@@ -27,52 +24,46 @@ export const useModal = () => {
 };
 
 export const ModalProvider = ({ children }: { children: ReactNode }) => {
-  const [isOpen, setIsOpen] = useState(false);
-  const [message, setMessage] = useState("Upgrade your plan to unlock unlimited access.");
+  const [isUpgradeModalOpen, setUpgradeModalOpen] = useState(false);
+  const [contextualMessage, setContextualMessage] = useState<string | null>(null);
   const navigate = useNavigate();
 
-  const openUpgradeModal = (msg?: string) => {
-    if (msg) setMessage(msg);
-    setIsOpen(true);
+  /**
+   * triggerUpgrade
+   * Can be called by FeatureGate or any restricted action to prompt a plan change.
+   */
+  const triggerUpgrade = (msg?: string) => {
+    if (msg) setContextualMessage(msg);
+    setUpgradeModalOpen(true);
   };
 
-  const closeModal = () => setIsOpen(false);
-
-  const handleUpgrade = () => {
-    setIsOpen(false);
-    navigate("/pricing");
+  const closeAllModals = () => {
+    setUpgradeModalOpen(false);
+    setContextualMessage(null);
   };
 
   return (
-    <ModalContext.Provider value={{ openUpgradeModal, closeModal }}>
+    <ModalContext.Provider 
+      value={{ 
+        isUpgradeModalOpen, 
+        setUpgradeModalOpen, 
+        triggerUpgrade, 
+        closeAllModals 
+      }}
+    >
       {children}
       
-      <Dialog open={isOpen} onOpenChange={setIsOpen}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <div className="flex items-center gap-2">
-              <div className="p-2 bg-amber-500/10 rounded-full">
-                <Crown className="w-5 h-5 text-amber-500" />
-              </div>
-              <DialogTitle>Upgrade Plan</DialogTitle>
-            </div>
-            <DialogDescription className="pt-2 text-foreground/80">
-              {message}
-            </DialogDescription>
-          </DialogHeader>
-          <DialogFooter className="sm:justify-start gap-2 pt-4">
-            <Button 
-              onClick={handleUpgrade} 
-              className="w-full sm:w-auto bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white border-0 shadow-lg shadow-amber-500/20"
-            >
-              View Plans
-            </Button>
-            <Button variant="ghost" onClick={closeModal} className="w-full sm:w-auto">
-              Maybe Later
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      {/* Centralized Upgrade Modal:
+         Instead of a basic alert, it renders the professional two-column 
+         pricing comparison we designed.
+      */}
+      <UpgradeModal 
+        open={isUpgradeModalOpen} 
+        onOpenChange={(open) => {
+          setUpgradeModalOpen(open);
+          if (!open) setContextualMessage(null);
+        }}
+      />
     </ModalContext.Provider>
   );
 };
