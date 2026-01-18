@@ -7,7 +7,7 @@ export type PlanTier = "FREE" | "PRO" | "PREMIUM";
 export type InstrumentType = "STOCK" | "CRYPTO" | "FOREX" | "FUTURES";
 export type TradeSide = "LONG" | "SHORT";
 export type TradeStatus = "OPEN" | "CLOSED";
-
+export type UserRole = "user" | "admin" | "super_admin" | "support";
 // ------------------------------------------------------------------
 // User & Auth (SYNCED WITH core.ts)
 // ------------------------------------------------------------------
@@ -19,6 +19,7 @@ export interface UserProfile {
   username?: string;
   avatar_url?: string;
   plan_tier: PlanTier;
+  role: UserRole;
   
   // Usage Stats (from user_profiles table)
   daily_chat_count: number;

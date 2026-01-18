@@ -3,17 +3,29 @@ import { StatCard } from "@/components/admin/StatCard";
 import { LiveTicker } from "@/components/admin/LiveTicker";
 import { TrafficChart } from "@/components/admin/TrafficChart";
 import { PlanDistributionChart } from "@/components/admin/PlanDistributionChart";
-import { Users, Activity, DollarSign, AlertTriangle, Calendar, Download } from "lucide-react";
+import { Users, Activity, DollarSign, AlertTriangle, Calendar, Download, RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { useAdminDashboard } from "@/hooks/use-admin-dashboard";
+import { useCurrency } from "@/hooks/use-currency";
 
 export default function AdminDashboard() {
+  // 1. Use the new hook for data fetching
+  const { stats, traffic, plans, isLoading, refetch } = useAdminDashboard();
+  const { format } = useCurrency(); 
+
   const currentDate = new Date().toLocaleDateString("en-US", { 
     weekday: 'long', 
     year: 'numeric', 
     month: 'long', 
     day: 'numeric' 
   });
+
+  // 2. Safe accessors with default values
+  const totalUsers = stats?.total_users ?? 0;
+  const activeUsers = stats?.active_24h ?? 0;
+  const revenue = stats?.revenue ?? 0;
+  const errorRate = stats?.error_rate ?? 0;
 
   return (
     <AdminLayout>
@@ -29,6 +41,15 @@ export default function AdminDashboard() {
             </div>
           </div>
           <div className="flex items-center gap-3">
+            <Button 
+              variant="ghost" 
+              size="icon" 
+              onClick={() => refetch()} 
+              disabled={isLoading}
+              className={isLoading ? "animate-spin" : ""}
+            >
+              <RefreshCw className="h-4 w-4" />
+            </Button>
             <Button variant="outline" className="bg-background/50">
               <Download className="mr-2 h-4 w-4" /> Export Data
             </Button>
@@ -42,48 +63,48 @@ export default function AdminDashboard() {
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
           <StatCard
             title="Total Users"
-            value="3,250"
-            change={12.5}
+            value={isLoading ? "..." : totalUsers.toLocaleString()}
+            change={0} // Change requires historical data in RPC (e.g. from previous day)
             icon={<Users className="h-5 w-5" />}
           />
           <StatCard
             title="Active Sessions"
-            value="847"
-            change={8.2}
+            value={isLoading ? "..." : activeUsers.toLocaleString()}
+            change={0}
             icon={<Activity className="h-5 w-5" />}
             variant="success"
           />
           <StatCard
             title="Monthly Revenue"
-            value="$48,320"
-            change={15.3}
+            value={isLoading ? "..." : format(revenue)}
+            change={0}
             icon={<DollarSign className="h-5 w-5" />}
-            variant="warning" // Warning color used for financial data often looks gold/amber
+            variant="warning"
           />
           <StatCard
             title="System Errors"
-            value="0.12%"
-            change={-25} // Negative change is good for errors
-            changeLabel="decreased vs last week"
+            value={isLoading ? "..." : `${errorRate.toFixed(2)}%`}
+            change={0}
             icon={<AlertTriangle className="h-5 w-5" />}
-            variant="danger"
+            variant={errorRate > 1 ? "danger" : "success"}
           />
         </div>
 
         {/* Main Charts Row */}
         <div className="grid grid-cols-1 xl:grid-cols-3 gap-6 h-full">
-          {/* Traffic Chart - Takes up 2/3 width */}
+          {/* Traffic Chart */}
           <Card className="xl:col-span-2 bg-card/50 backdrop-blur-sm border-border/60 shadow-sm hover:shadow-md transition-shadow">
             <CardHeader>
               <CardTitle>Traffic Overview</CardTitle>
               <CardDescription>Daily active users and api requests over time</CardDescription>
             </CardHeader>
             <CardContent className="pl-0">
-              <TrafficChart />
+              {/* Pass dynamic data to chart */}
+              <TrafficChart data={traffic} />
             </CardContent>
           </Card>
 
-          {/* Live Ticker - Takes up 1/3 width */}
+          {/* Live Ticker */}
           <Card className="flex flex-col bg-card/50 backdrop-blur-sm border-border/60 shadow-sm hover:shadow-md transition-shadow">
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
@@ -109,11 +130,11 @@ export default function AdminDashboard() {
               <CardDescription>User subscription breakdown</CardDescription>
             </CardHeader>
             <CardContent>
-              <PlanDistributionChart />
+              {/* Pass dynamic plans data */}
+              <PlanDistributionChart data={plans} />
             </CardContent>
           </Card>
           
-          {/* Placeholder for future widgets to keep layout balanced */}
           <Card className="lg:col-span-2 bg-gradient-to-br from-primary/5 to-secondary/50 border-border/60 border-dashed">
             <CardContent className="flex flex-col items-center justify-center h-[300px] text-muted-foreground gap-4">
               <div className="h-12 w-12 rounded-full bg-muted flex items-center justify-center">
