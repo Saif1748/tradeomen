@@ -53,6 +53,9 @@ const AdminAICosts = lazy(() => import("./pages/admin/AdminAICosts"));
 
 const queryClient = new QueryClient();
 
+// ✅ Flag to control feature availability
+const SHOW_DEV_FEATURES = import.meta.env.DEV;
+
 /**
  * PageLoader
  * Global fallback for Suspense and Auth state transitions.
@@ -124,9 +127,15 @@ const App = () => (
                           <Route path="/trades" element={<Trades />} />
                           <Route path="/strategies" element={<Strategies />} />
                           <Route path="/calendar" element={<Calendar />} />
-                          <Route path="/reports" element={<Reports />} />
-                          <Route path="/markets" element={<Markets />} />
-                          <Route path="/ai-chat" element={<AIChat />} />
+                          
+                          {/* ✅ DEV ONLY ROUTES - Hidden in Production */}
+                          {SHOW_DEV_FEATURES && (
+                            <>
+                              <Route path="/reports" element={<Reports />} />
+                              <Route path="/markets" element={<Markets />} />
+                              <Route path="/ai-chat" element={<AIChat />} />
+                            </>
+                          )}
                         </Route>
 
                         {/* Catch-all */}

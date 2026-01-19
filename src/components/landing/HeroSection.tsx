@@ -19,7 +19,6 @@ export function HeroSection() {
   const mouseY = useSpring(y, { stiffness: 50, damping: 20 });
 
   // Calculate rotation based on mouse position relative to the center of the screen
-  // Adjust numbers (e.g., / 70) to control intensity. Higher number = subtler effect.
   const rotateX = useTransform(mouseY, (value) => (value - window.innerHeight / 2) / 70);
   const rotateY = useTransform(mouseX, (value) => (value - window.innerWidth / 2) / -70);
 
@@ -28,6 +27,21 @@ export function HeroSection() {
     y.set(event.clientY);
   }
   // ----------------------------------------
+
+  // ✅ Dynamic Content based on Environment
+  const isDev = import.meta.env.DEV;
+
+  const badgeText = isDev 
+    ? "AI-Powered Trading Journal" 
+    : "Early Access Beta: 100% Free";
+
+  const ctaText = isDev 
+    ? "Start Free Trial" 
+    : "Start Trading for Free";
+
+  const subText = isDev 
+    ? "TradeOmen helps traders journal, analyze, and improve their performance with AI-powered insights. Track every trade, discover your patterns, and make smarter decisions."
+    : "TradeOmen helps traders journal, analyze, and improve their performance. Join the beta today to track every trade, discover patterns, and make smarter decisions—completely free.";
 
   return (
     <section 
@@ -38,18 +52,16 @@ export function HeroSection() {
       <div className="absolute inset-0 hero-gradient" />
       <div className="absolute inset-0 mesh-gradient" />
       
-      {/* Floating Background Orbs... (Kept existing code) */}
+      {/* Floating Background Orbs... */}
       <motion.div 
         className="absolute top-1/4 left-1/4 w-96 h-96 bg-primary/20 rounded-full blur-[120px] -z-10"
         animate={{ scale: [1, 1.2, 1], opacity: [0.3, 0.5, 0.3] }}
         transition={{ duration: 8, repeat: Infinity, ease: "easeInOut" }}
       />
-      {/* ... other orb ... */}
-
       
       <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 z-10">
         <div className="max-w-4xl mx-auto text-center">
-          {/* ... Badge, Headline, Subtitle, CTAs (Kept existing code) ... */}
+          {/* Badge */}
            <motion.div
             variants={fadeInUp}
             initial="initial"
@@ -59,7 +71,7 @@ export function HeroSection() {
           >
             <Lightning size={16} weight="fill" className="text-primary" />
             <span className="text-sm font-medium text-primary tracking-wide">
-              AI-Powered Trading Journal
+              {badgeText}
             </span>
           </motion.div>
 
@@ -85,9 +97,7 @@ export function HeroSection() {
             transition={{ duration: 0.7, delay: 0.2, ease: [0.25, 0.46, 0.45, 0.94] }}
             className="mt-8 text-lg sm:text-xl font-light text-muted-foreground tracking-normal-premium leading-body max-w-2xl mx-auto"
           >
-            TradeOmen helps traders journal, analyze, and improve their performance 
-            with AI-powered insights. Track every trade, discover your patterns, 
-            and make smarter decisions.
+            {subText}
           </motion.p>
 
            {/* CTAs */}
@@ -102,17 +112,15 @@ export function HeroSection() {
               to="/dashboard"
               className="glow-button px-8 py-4 rounded-full text-base font-medium text-primary-foreground inline-flex items-center gap-2 group"
             >
-              Start Free Trial
+              {ctaText}
               <ArrowRight 
                 size={18} 
                 weight="bold" 
                 className="transition-transform group-hover:translate-x-1" 
               />
             </Link>
-             {/* ... Demo Link ... */}
           </motion.div>
         </div>
-
 
         {/* === THE NEW PROFESSIONAL HERO SHOT === */}
         <motion.div

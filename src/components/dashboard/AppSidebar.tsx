@@ -53,6 +53,16 @@ const AppSidebar = ({ collapsed, onToggle }: AppSidebarProps) => {
   // Helper to get display name safely
   const displayName = profile?.full_name || user?.user_metadata?.full_name || user?.email?.split('@')[0] || "Trader";
 
+  // ✅ Filter navigation items: Hide specific items in production
+  const visibleNavItems = navItems.filter((item) => {
+    // Always show these core features
+    if (["Dashboard", "Trades", "Strategies", "Calendar"].includes(item.title)) {
+      return true;
+    }
+    // Only show Reports, Markets, and AI Chat in Development (Localhost)
+    return import.meta.env.DEV;
+  });
+
   const getInitials = () => {
     const nameToUse = profile?.full_name || user?.user_metadata?.full_name;
     if (nameToUse) {
@@ -169,9 +179,9 @@ const AppSidebar = ({ collapsed, onToggle }: AppSidebarProps) => {
           )}
         </AnimatePresence>
 
-        {/* Navigation */}
+        {/* Navigation - Using visibleNavItems */}
         <nav className="flex-1 px-3 space-y-1">
-          {navItems.map((item) => {
+          {visibleNavItems.map((item) => {
             const isActive = location.pathname === item.path;
             const Icon = item.icon;
 

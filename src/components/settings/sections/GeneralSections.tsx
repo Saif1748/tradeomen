@@ -5,6 +5,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Badge } from "@/components/ui/badge";
 import { Robot, ShieldCheck, Lightning, Check } from "@phosphor-icons/react";
 
+// ✅ Flag for feature availability
+const SHOW_DEV_FEATURES = import.meta.env.DEV;
+
 export const AISection = () => (
   <div className="space-y-6">
     <div className="space-y-2">
@@ -75,20 +78,27 @@ export const NotificationsSection = () => (
 
 export const PrivacySection = () => (
   <div className="space-y-6">
-    <div className="flex items-center justify-between">
-      <div>
-        <Label>Analytics</Label>
-        <p className="text-xs text-muted-foreground">Help improve TradeOmen</p>
-      </div>
-      <Switch defaultChecked />
-    </div>
-    <div className="space-y-3">
-      <Label>Export Data</Label>
-      <div className="flex gap-2">
-        <Button variant="outline" size="sm">Export as CSV</Button>
-        <Button variant="outline" size="sm">Export as JSON</Button>
-      </div>
-    </div>
+    {/* ✅ Only show Analytics and Export in Dev/Localhost */}
+    {SHOW_DEV_FEATURES && (
+      <>
+        <div className="flex items-center justify-between">
+          <div>
+            <Label>Analytics</Label>
+            <p className="text-xs text-muted-foreground">Help improve TradeOmen</p>
+          </div>
+          <Switch defaultChecked />
+        </div>
+        <div className="space-y-3">
+          <Label>Export Data</Label>
+          <div className="flex gap-2">
+            <Button variant="outline" size="sm">Export as CSV</Button>
+            <Button variant="outline" size="sm">Export as JSON</Button>
+          </div>
+        </div>
+      </>
+    )}
+
+    {/* ✅ Always Visible: Danger Zone */}
     <div className="p-4 rounded-xl bg-rose-500/10 border border-rose-500/20">
       <div className="flex items-center gap-2 mb-2">
         <ShieldCheck weight="fill" className="w-5 h-5 text-rose-400" />

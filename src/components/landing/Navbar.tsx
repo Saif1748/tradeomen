@@ -5,15 +5,16 @@ import { Link, useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "@/hooks/use-Auth";
 import logo from "@/assets/tradeomen-logo.png";
 
-
+// ✅ 1. Filter Links: Hide Pricing & FAQ in Production, Show in Localhost
 const navLinks = [
   { label: "Features", href: "/#features", type: "hash" },
   { label: "Demo", href: "/#demo", type: "hash" },
-  { label: "Pricing", href: "/pricing", type: "route" },
+  ...(import.meta.env.DEV ? [
+    { label: "Pricing", href: "/pricing", type: "route" },
+    { label: "FAQ", href: "/pricing#faq", type: "route" },
+  ] : []),
   { label: "About", href: "/about", type: "route" },
-  { label: "FAQ", href: "/pricing#faq", type: "route" },
 ];
-
 
 export function Navbar() {
   const [isScrolled, setIsScrolled] = useState(false);
@@ -22,7 +23,6 @@ export function Navbar() {
   const location = useLocation();
   const navigate = useNavigate();
 
-
   useEffect(() => {
     const handleScroll = () => {
       setIsScrolled(window.scrollY > 50);
@@ -30,7 +30,6 @@ export function Navbar() {
     window.addEventListener("scroll", handleScroll);
     return () => window.removeEventListener("scroll", handleScroll);
   }, []);
-
 
   const handleNavClick = (e: React.MouseEvent<HTMLAnchorElement>, href: string, type: string) => {
     setIsMobileMenuOpen(false);
@@ -52,6 +51,8 @@ export function Navbar() {
     }
   };
 
+  // ✅ 2. Dynamic Button Text: "Get Started" (Local) vs "Join Beta Free" (Prod)
+  const ctaText = import.meta.env.DEV ? "Get Started" : "Join Beta Free";
 
   return (
     <>
@@ -73,7 +74,6 @@ export function Navbar() {
                 className="h-9 sm:h-10 w-auto"
               />
             </Link>
-
 
             {/* Desktop Navigation */}
             <div className="hidden lg:flex items-center gap-8">
@@ -102,7 +102,6 @@ export function Navbar() {
                 )
               ))}
             </div>
-
 
             {/* Desktop CTAs - Conditional Rendering */}
             <div className="hidden lg:flex items-center gap-4">
@@ -135,12 +134,11 @@ export function Navbar() {
                     to="/auth?mode=signup"
                     className="glow-button px-5 py-2.5 rounded-full text-sm font-medium text-primary-foreground"
                   >
-                    Get Started
+                    {ctaText}
                   </Link>
                 </>
               )}
             </div>
-
 
             {/* Mobile Menu Button */}
             <button
@@ -152,7 +150,6 @@ export function Navbar() {
           </div>
         </nav>
       </motion.header>
-
 
       {/* Mobile Menu */}
       <AnimatePresence>
@@ -243,7 +240,7 @@ export function Navbar() {
                         onClick={() => setIsMobileMenuOpen(false)}
                         className="glow-button w-full py-3 text-center font-medium text-primary-foreground rounded-xl"
                       >
-                        Get Started
+                        {ctaText}
                       </Link>
                     </>
                   )}

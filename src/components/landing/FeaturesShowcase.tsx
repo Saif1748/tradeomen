@@ -20,12 +20,13 @@ const features = [
     description: "Track 50+ metrics including win rate, profit factor, drawdown, R-multiples, and equity curves.",
     color: "text-emerald-400",
   },
-  {
+  // ✅ 1. Hide AI in Production (Only visible in Dev)
+  ...(import.meta.env.DEV ? [{
     icon: Robot,
     title: "AI Trade Analysis",
     description: "Get personalized insights and pattern recognition powered by machine learning algorithms.",
     color: "text-primary",
-  },
+  }] : []),
   {
     icon: Target,
     title: "Strategy Management",
@@ -44,12 +45,13 @@ const features = [
     description: "Organize trades with custom tags and discover which setups work best for you.",
     color: "text-pink-400",
   },
-  {
+  // ✅ 2. Hide Reports in Production (Only visible in Dev)
+  ...(import.meta.env.DEV ? [{
     icon: Export,
     title: "Export Reports",
     description: "Generate professional PDF and CSV reports to track your progress over time.",
     color: "text-purple-400",
-  },
+  }] : []),
   {
     icon: TrendUp,
     title: "Performance Tracking",

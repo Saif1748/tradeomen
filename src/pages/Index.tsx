@@ -17,6 +17,9 @@ const Pricing = lazy(() => import("@/components/landing/Pricing").then(module =>
 const FAQ = lazy(() => import("@/components/landing/FAQ").then(module => ({ default: module.FAQ })));
 const CTA = lazy(() => import("@/components/landing/CTA").then(module => ({ default: module.CTA })));
 
+// ✅ Define Flag to control feature visibility
+const SHOW_DEV_FEATURES = import.meta.env.DEV;
+
 // Loading Fallback (Prevents layout shift while components load)
 const SectionLoader = () => <div className="w-full h-96 animate-pulse bg-background/50" />;
 
@@ -56,8 +59,8 @@ const Index = () => {
         {/* The "Product Tour" (Tabs & 3D Browser) */}
         <ProductShowcase />
         
-        {/* AI "Personal Quant" Section */}
-        <AIFeatureSection />
+        {/* ✅ AI Section: Hidden in Production (Free Beta Mode) */}
+        {SHOW_DEV_FEATURES && <AIFeatureSection />}
 
         {/* Data Funnel / Import Section */}
         <SmartImportSection />
@@ -68,11 +71,11 @@ const Index = () => {
         {/* "Who is this for?" (Replaces Testimonials) */}
         <TradingPersonas />
         
-        {/* Pricing Tables */}
-        <Pricing />
+        {/* ✅ Pricing: Hidden in Production (Free Beta Mode) */}
+        {SHOW_DEV_FEATURES && <Pricing />}
         
-        {/* General FAQ */}
-        <FAQ />
+        {/* ✅ FAQ: Hidden in Production (Usually contains pricing info) */}
+        {SHOW_DEV_FEATURES && <FAQ />}
         
         {/* "Stop Guessing" Finale */}
         <CTA />

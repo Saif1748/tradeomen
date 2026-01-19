@@ -60,6 +60,16 @@ const sectionComponents: Record<SettingsSection, React.FC> = {
 const SettingsModal = ({ isOpen, onClose }: SettingsModalProps) => {
   const [activeSection, setActiveSection] = useState<SettingsSection>("profile");
   const isMobile = useIsMobile();
+
+  // ✅ Filter sections based on Environment
+  const visibleSections = sections.filter((section) => {
+    // Show all sections in Development (Localhost)
+    if (import.meta.env.DEV) return true;
+
+    // In Production, only show: Profile, Trading, and Privacy
+    return ["profile", "trading", "privacy"].includes(section.id);
+  });
+
   const ActiveComponent = sectionComponents[activeSection];
 
   const content = (
@@ -67,7 +77,7 @@ const SettingsModal = ({ isOpen, onClose }: SettingsModalProps) => {
       {/* Sidebar Navigation */}
       <div className="sm:w-56 sm:border-r border-border/50 sm:pr-4 pb-4 sm:pb-0 overflow-x-auto sm:overflow-x-visible">
         <div className="flex sm:flex-col gap-1 sm:gap-1 min-w-max sm:min-w-0">
-          {sections.map((section) => {
+          {visibleSections.map((section) => {
             const Icon = section.icon;
             const isActive = activeSection === section.id;
             
