@@ -10,7 +10,7 @@ import {
   Clock, 
   Sparkle, 
   X,
-  LockKey // ✅ Switched to 'LockKey' for a premium aesthetic
+  LockKey 
 } from "@phosphor-icons/react";
 import { DateRange } from "react-day-picker";
 import { format } from "date-fns";
@@ -118,7 +118,7 @@ const Reports = () => {
           <Icon weight="duotone" className={`w-4 h-4 ${locked ? 'opacity-70' : ''}`} />
           <span className={locked ? "opacity-80" : ""}>{label}</span>
           
-          {/* Aesthetic Lock Badge: Matches Landing Page/Pricing Design */}
+          {/* Aesthetic Lock Badge */}
           {locked && (
             <div className="ml-0.5 flex items-center justify-center bg-background/20 rounded-full p-0.5 backdrop-blur-[1px] border border-white/10 group-data-[state=active]:border-white/20">
               <LockKey weight="fill" className="w-2.5 h-2.5 opacity-80" />
@@ -144,7 +144,7 @@ const Reports = () => {
 
       <div className="px-4 sm:px-6 lg:px-8 pb-6 pt-4 space-y-4 sm:space-y-6">
         
-        {/* Filters Bar - Desktop (Refined "Card" Look) */}
+        {/* Filters Bar - Desktop */}
         <div className="hidden sm:flex flex-wrap items-center gap-3">
           <Popover>
             <PopoverTrigger asChild>
@@ -249,7 +249,7 @@ const Reports = () => {
           </Button>
         </div>
 
-        {/* Tabs System - Professional Floating Design */}
+        {/* Tabs System */}
         <Tabs value={activeTab} onValueChange={(val) => setActiveTab(val as ReportTab)} className="w-full">
           <div className="sticky top-0 z-20 pb-4 -mx-4 px-4 sm:mx-0 sm:px-0 bg-background/80 backdrop-blur-sm sm:static sm:bg-transparent">
             {/* Glassmorphism Floating Tab List */}

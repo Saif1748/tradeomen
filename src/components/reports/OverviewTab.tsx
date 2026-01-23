@@ -25,7 +25,6 @@ import {
   Cell,
   ReferenceLine
 } from "recharts";
-// ✅ Fix: Import from the new hook file instead of SettingsContext
 import { useCurrency } from "@/hooks/use-currency";
 import { Skeleton } from "@/components/ui/skeleton";
 
@@ -36,13 +35,59 @@ interface OverviewTabProps {
 }
 
 const OverviewTab = ({ data, isLoading, isError }: OverviewTabProps) => {
-  // ✅ Fix: Use Global Currency Hook
-  const { format, symbol } = useCurrency();
+  const { format: formatNum, symbol } = useCurrency();
 
-  // Helper function to format currency with symbol
-  const formatCurrency = (val: number) => {
-    return `${symbol}${format(val)}`;
-  };
+  const formatCurrency = (val: number) => `${symbol}${formatNum(val)}`;
+
+  // --- 1. Derivation Logic (Client-Side) ---
+  const derivedMetrics = useMemo(() => {
+    if (!data?.stats) return null;
+    
+    const s = data.stats;
+    const totalPnl = Number(s.totalPnl) || 0;
+    const wins = Number(s.wins) || 0;
+    const losses = Number(s.losses) || 0;
+    const avgRR = Number(s.avgRR) || 0;
+    const winRate = (Number(s.winRate) || 0) / 100; // SQL returns 0-100, we need 0-1 for math
+
+    // Calculate Avg Win/Loss mathematically from PnL, WinRate, and RR
+    // Formula: TotalPnL = (AvgWin * Wins) - (AvgLoss * Losses)
+    //          AvgLoss  = AvgWin / AvgRR
+    // Result:  AvgWin   = (TotalPnL * AvgRR) / ((Wins * AvgRR) - Losses)
+    
+    let avgWin = 0;
+    let avgLoss = 0;
+
+    if (wins > 0 && losses > 0 && avgRR > 0) {
+        const denominator = (wins * avgRR) - losses;
+        if (Math.abs(denominator) > 0.01) { // Avoid divide by zero
+            avgWin = (totalPnl * avgRR) / denominator;
+            avgLoss = avgWin / avgRR;
+        }
+    } else if (wins > 0 && losses === 0) {
+        avgWin = totalPnl / wins;
+        avgLoss = 0;
+    } else if (wins === 0 && losses > 0) {
+        avgWin = 0;
+        avgLoss = Math.abs(totalPnl / losses);
+    }
+
+    // Expectancy = (Win% * AvgWin) - (Loss% * AvgLoss)
+    const expectancy = (winRate * avgWin) - ((1 - winRate) * avgLoss);
+
+    return {
+        totalPnl,
+        wins,
+        losses,
+        totalTrades: Number(s.totalTrades) || 0,
+        winRate: winRate * 100, // Display as 0-100
+        profitFactor: Number(s.profitFactor) || 0,
+        avgRR,
+        avgWin,
+        avgLoss,
+        expectancy
+    };
+  }, [data]);
 
   if (isLoading) {
     return (
@@ -57,31 +102,18 @@ const OverviewTab = ({ data, isLoading, isError }: OverviewTabProps) => {
     );
   }
 
-  if (isError || !data) {
+  if (isError || !derivedMetrics) {
     return (
       <div className="h-64 flex items-center justify-center glass-card rounded-2xl border border-rose-500/20 text-rose-400">
-        Failed to load report data. Please try again.
+        Failed to load report data. Please check your connection or filters.
       </div>
     );
   }
 
-  // ✅ Extract data from SQL JSON response
-  const stats = data?.stats || {};
-  const equityCurve = data?.equityCurve || [];
-  // const dailyPnLData = data?.dailyPnL || []; // Unused variable
-  const longShortData = data?.longShort || [];
-
-  // ✅ Advanced Metric Calculations with safe fallbacks
-  const totalTrades = stats.totalTrades || 0;
-  const wins = stats.wins || 0;
-  const losses = stats.losses || 0;
-  const winRate = (stats.winRate || 0) / 100;
-
-  // Expectancy = (Win% * AvgWin) - (Loss% * AvgLoss)
-  // We calculate AvgWin/AvgLoss from stats to be more precise than just P&L
-  const avgWin = wins > 0 ? (stats.totalPnl > 0 ? stats.totalPnl / wins : 50) : 0; // Fallback for mock/calc
-  const avgLoss = losses > 0 ? (Math.abs(stats.totalPnl) / losses) : 0;
-  const expectancy = (winRate * avgWin) - ((1 - winRate) * avgLoss);
+  const { 
+    totalPnl, wins, losses, totalTrades, winRate, 
+    profitFactor, avgRR, avgWin, avgLoss, expectancy 
+  } = derivedMetrics;
 
   const winLossData = [
     { name: "Wins", value: wins, fill: "hsl(142, 71%, 45%)" },
@@ -91,24 +123,24 @@ const OverviewTab = ({ data, isLoading, isError }: OverviewTabProps) => {
   const metrics = [
     { 
       label: "Net P&L", 
-      value: formatCurrency(stats.totalPnl || 0),
+      value: formatCurrency(totalPnl),
       icon: CurrencyDollar,
-      trend: (stats.totalPnl || 0) >= 0 ? "positive" : "negative",
+      trend: totalPnl >= 0 ? "positive" : "negative",
       subtext: "Total realized profit"
     },
     { 
       label: "Win Rate", 
-      value: `${(stats.winRate || 0).toFixed(1)}%`,
+      value: `${winRate.toFixed(1)}%`,
       icon: Target,
-      trend: (stats.winRate || 0) >= 50 ? "positive" : "negative",
+      trend: winRate >= 50 ? "positive" : "negative",
       subtext: `${wins}W - ${losses}L`
     },
     { 
       label: "Profit Factor", 
-      value: (stats.profitFactor || 0).toFixed(2),
+      value: profitFactor.toFixed(2),
       icon: ChartBar,
-      trend: (stats.profitFactor || 0) >= 1.5 ? "positive" : (stats.profitFactor || 0) >= 1 ? "neutral" : "negative",
-      subtext: "Profit / Loss Ratio"
+      trend: profitFactor >= 1.5 ? "positive" : profitFactor >= 1 ? "neutral" : "negative",
+      subtext: "Gross Profit / Gross Loss"
     },
     { 
       label: "Expectancy", 
@@ -133,10 +165,10 @@ const OverviewTab = ({ data, isLoading, isError }: OverviewTabProps) => {
     },
     { 
       label: "Risk:Reward", 
-      value: `1:${(stats.avgRR || 0).toFixed(2)}`,
+      value: `1:${avgRR.toFixed(2)}`,
       icon: Scales,
-      trend: (stats.avgRR || 0) >= 1.5 ? "positive" : "neutral",
-      subtext: "Realized R:R"
+      trend: avgRR >= 1.5 ? "positive" : "neutral",
+      subtext: "Avg Win / Avg Loss"
     },
     { 
       label: "Total Trades", 
@@ -163,6 +195,10 @@ const OverviewTab = ({ data, isLoading, isError }: OverviewTabProps) => {
     }
   };
 
+  // Safe chart data access
+  const equityData = data.equityCurve || [];
+  const longShortData = data.longShort || [];
+
   return (
     <div className="space-y-6">
       
@@ -188,21 +224,20 @@ const OverviewTab = ({ data, isLoading, isError }: OverviewTabProps) => {
         ))}
       </div>
 
-
       {/* 2. Equity Curve Chart */}
       <div className="glass-card p-4 md:p-6 rounded-2xl border border-border/50">
         <div className="flex items-center justify-between mb-6">
           <div>
             <h3 className="text-base font-semibold text-foreground">Equity Curve</h3>
-            <p className="text-xs text-muted-foreground">Cumulative performance tracking</p>
+            <p className="text-xs text-muted-foreground">Cumulative P&L over time</p>
           </div>
           <div className="px-3 py-1 rounded-full bg-secondary/50 border border-border text-[10px] font-bold text-foreground">
-            {totalTrades} TOTAL TRADES
+            {totalTrades} TRADES
           </div>
         </div>
         <div className="h-[300px] w-full">
           <ResponsiveContainer width="100%" height="100%">
-            <AreaChart data={equityCurve} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
+            <AreaChart data={equityData} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
               <defs>
                 <linearGradient id="colorPnL" x1="0" y1="0" x2="0" y2="1">
                   <stop offset="5%" stopColor="hsl(var(--primary))" stopOpacity={0.3} />
@@ -210,8 +245,19 @@ const OverviewTab = ({ data, isLoading, isError }: OverviewTabProps) => {
                 </linearGradient>
               </defs>
               <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} opacity={0.3} />
-              <XAxis dataKey="date" tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 10 }} axisLine={false} tickLine={false} minTickGap={40} />
-              <YAxis tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 10 }} axisLine={false} tickLine={false} tickFormatter={(val) => `${symbol}${val}`} />
+              <XAxis 
+                dataKey="date" 
+                tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 10 }} 
+                axisLine={false} 
+                tickLine={false} 
+                minTickGap={40} 
+              />
+              <YAxis 
+                tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 10 }} 
+                axisLine={false} 
+                tickLine={false} 
+                tickFormatter={(val) => `${symbol}${val}`} 
+              />
               <Tooltip
                 contentStyle={{ backgroundColor: "hsl(var(--card))", borderColor: "hsl(var(--border))", borderRadius: "12px", fontSize: "12px" }}
                 formatter={(value: number) => [formatCurrency(value), "Equity"]}
@@ -222,7 +268,6 @@ const OverviewTab = ({ data, isLoading, isError }: OverviewTabProps) => {
           </ResponsiveContainer>
         </div>
       </div>
-
 
       {/* 3. Distribution & Volume Section */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6">
@@ -241,7 +286,7 @@ const OverviewTab = ({ data, isLoading, isError }: OverviewTabProps) => {
                 </PieChart>
               </ResponsiveContainer>
               <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
-                <span className="text-2xl font-bold text-foreground">{(stats.winRate || 0).toFixed(0)}%</span>
+                <span className="text-2xl font-bold text-foreground">{winRate.toFixed(0)}%</span>
                 <span className="text-[10px] text-muted-foreground uppercase font-bold tracking-tighter">Win Rate</span>
               </div>
             </div>
@@ -286,7 +331,7 @@ const OverviewTab = ({ data, isLoading, isError }: OverviewTabProps) => {
             {longShortData.map((item: any) => (
               <div key={item.side} className="p-2 rounded-lg bg-secondary/30 text-center border border-border/30">
                 <p className="text-[10px] text-muted-foreground font-bold uppercase">{item.side}</p>
-                <p className="text-sm font-bold text-foreground">{(item.winRate || 0).toFixed(1)}% WR</p>
+                <p className="text-sm font-bold text-foreground">{(Number(item.winRate) || 0).toFixed(1)}% WR</p>
                 <p className="text-[10px] text-muted-foreground">{item.trades} Trades</p>
               </div>
             ))}

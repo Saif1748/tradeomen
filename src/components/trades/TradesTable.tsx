@@ -1,11 +1,10 @@
-// src/components/trades/TradesTable.tsx
 import { 
   CaretUp, 
   CaretDown, 
   PencilSimple, 
   Trash, 
   DotsThreeVertical,
-  Eye // Added Eye icon for clarity in menu if needed, though mostly for row click
+  Eye 
 } from "@phosphor-icons/react";
 import { format } from "date-fns";
 import { UITrade } from "@/hooks/use-trades";
@@ -26,11 +25,12 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { useCurrency } from "@/hooks/use-currency";
+import { cn } from "@/lib/utils"; // Assuming you have a utils file, otherwise remove cn usage
 
 interface TradesTableProps {
   trades: UITrade[];
   isLoading: boolean;
-  onView: (trade: UITrade) => void; // ✅ New Prop: View Details
+  onView: (trade: UITrade) => void;
   onEdit: (trade: UITrade) => void;
   onDelete: (id: string) => void;
   sortField?: string;
@@ -67,7 +67,6 @@ const TradesTable = ({
     );
   };
 
-  // Safe Sort Handler
   const handleSort = (field: string) => {
     if (onSort) onSort(field);
   };
@@ -121,12 +120,16 @@ const TradesTable = ({
             ) : (
               trades.map((trade) => {
                 const isLoss = (trade.pnl || 0) < 0;
-                const isRLoss = trade.rMultiple < 0;
+                
+                // ✅ Improved R Logic: Check if R is essentially 0
+                const rVal = trade.rMultiple || 0;
+                const isZeroR = Math.abs(rVal) < 0.01;
+                const isRLoss = rVal < 0;
 
                 return (
                   <TableRow
                     key={trade.id}
-                    onClick={() => onView(trade)} // ✅ Click row to view details
+                    onClick={() => onView(trade)}
                     className="border-border/50 hover:bg-primary/5 transition-colors group cursor-pointer"
                   >
                     <TableCell className="text-muted-foreground whitespace-nowrap text-sm">
@@ -151,11 +154,17 @@ const TradesTable = ({
                     <TableCell className={`font-bold tabular-nums text-sm text-right ${!isLoss ? "text-emerald-500" : "text-rose-500"}`}>
                       {!isLoss ? "+" : ""}{symbol}{formatCurrency(Math.abs(trade.pnl || 0))}
                     </TableCell>
-                    <TableCell className={`font-medium tabular-nums text-sm text-right ${!isRLoss ? "text-emerald-500" : "text-rose-500"}`}>
-                      {!isRLoss ? "+" : "-"}{Math.abs(trade.rMultiple).toFixed(2)}R
+                    
+                    {/* ✅ R-Multiple Cell (Enhanced) */}
+                    <TableCell className={cn(
+                        "font-medium tabular-nums text-sm text-right",
+                        isZeroR ? "text-muted-foreground/50" : (!isRLoss ? "text-emerald-500" : "text-rose-500")
+                    )}>
+                      {isZeroR ? "—" : `${!isRLoss ? "+" : "-"}${Math.abs(rVal).toFixed(2)}R`}
                     </TableCell>
+
                     <TableCell className="text-foreground/80 text-sm truncate max-w-[140px]">
-                      {trade.strategy}
+                      {trade.strategy || <span className="text-muted-foreground/30 italic">None</span>}
                     </TableCell>
                     
                     {/* Tags */}
@@ -183,7 +192,6 @@ const TradesTable = ({
 
                     {/* Actions Menu */}
                     <TableCell onClick={(e) => e.stopPropagation()}> 
-                      {/* ✅ Stop Propagation so clicking menu doesn't open details sheet */}
                       <DropdownMenu>
                         <DropdownMenuTrigger asChild>
                           <Button variant="ghost" className="h-8 w-8 p-0 opacity-0 group-hover:opacity-100 transition-opacity">
@@ -215,10 +223,14 @@ const TradesTable = ({
       <div className="lg:hidden space-y-3">
         {trades.map((trade) => {
           const isLoss = (trade.pnl || 0) < 0;
+          const rVal = trade.rMultiple || 0;
+          const isZeroR = Math.abs(rVal) < 0.01;
+          const isRLoss = rVal < 0;
+
           return (
             <div
               key={trade.id}
-              onClick={() => onView(trade)} // ✅ Click card to view details
+              onClick={() => onView(trade)}
               className="glass-card px-4 py-3 rounded-xl border border-border/50 active:scale-[0.98] transition-all hover:bg-secondary/30 cursor-pointer"
             >
               <div className="flex items-center justify-between mb-2">
@@ -233,7 +245,6 @@ const TradesTable = ({
                   </Badge>
                 </div>
                 
-                {/* Mobile Actions Dropdown */}
                 <div className="flex items-center gap-2">
                     <span className={`text-lg font-bold tabular-nums ${!isLoss ? "text-emerald-500" : "text-rose-500"}`}>
                         {!isLoss ? "+" : ""}{symbol}{formatCurrency(Math.abs(trade.pnl || 0))}
@@ -265,15 +276,19 @@ const TradesTable = ({
                 <div className="flex items-center gap-1.5 truncate max-w-[70%]">
                   <span>{format(trade.date, "MMM d")}</span>
                   <span>•</span>
-                  <span className="truncate text-foreground/80">{trade.strategy}</span>
+                  <span className="truncate text-foreground/80">{trade.strategy || "No Strategy"}</span>
                   {trade.tags.length > 0 && (
                       <span className="border border-primary/20 bg-primary/5 text-primary px-1 rounded-[4px] text-[9px] truncate max-w-[60px]">
                         {trade.tags[0]}
                       </span>
                   )}
                 </div>
-                <span className={`font-semibold shrink-0 ${trade.rMultiple >= 0 ? "text-emerald-500" : "text-rose-500"}`}>
-                  {trade.rMultiple >= 0 ? "+" : "-"}{Math.abs(trade.rMultiple).toFixed(1)}R
+                {/* ✅ R-Multiple Mobile Display */}
+                <span className={cn(
+                    "font-semibold shrink-0",
+                    isZeroR ? "text-muted-foreground/50" : (!isRLoss ? "text-emerald-500" : "text-rose-500")
+                )}>
+                  {isZeroR ? "—" : `${!isRLoss ? "+" : "-"}${Math.abs(rVal).toFixed(1)}R`}
                 </span>
               </div>
             </div>

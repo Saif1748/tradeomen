@@ -2,7 +2,6 @@ import { ReactNode, useState, useEffect, useMemo } from "react";
 import { useAuth } from "@/hooks/use-Auth";
 import { authApi } from "@/services/api/modules/auth";
 import { toast } from "sonner";
-// Import the context from the new hook file
 import { CurrencyContext } from "@/hooks/use-currency";
 
 export const CurrencyProvider = ({ children }: { children: ReactNode }) => {
@@ -110,6 +109,7 @@ export const CurrencyProvider = ({ children }: { children: ReactNode }) => {
       value={{
         currency,
         symbol,
+        rate, // ✅ Added: Pass the rate to consumers
         setCurrency,
         format,
       }}

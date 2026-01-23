@@ -3,6 +3,7 @@ import { createContext, useContext } from "react";
 export interface CurrencyContextType {
   currency: string;
   symbol: string;
+  rate: number; // ✅ Added: Expose the raw exchange rate
   setCurrency: (code: string) => void;
   format: (amountUSD: number) => string;
 }
