@@ -85,6 +85,7 @@ export interface ExecutionCreate {
 export interface Trade {
   id: string;
   user_id: string;
+  account_id: string; // ✅ Added: Linked Account ID
   
   // Core Info
   symbol: string;
@@ -99,6 +100,7 @@ export interface Trade {
   total_fees: number;     // WAS: fees
   
   start_time: string;     // WAS: entry_time
+  end_time?: string;
   created_at: string;
 
   // Metadata
@@ -130,8 +132,10 @@ export interface CreateTradeInput {
   // Container Info
   symbol: string;
   instrument_type: InstrumentType;
-  direction: TradeSide;
+  // NOTE: Direction removed. Backend derives it from initial_execution side.
   
+  account_id?: string; // Optional: If missing, backend uses default account
+
   // Container Targets
   stop_loss?: number;
   target?: number;
@@ -149,6 +153,7 @@ export interface CreateTradeInput {
 
 export interface UpdateTradeInput {
   // ✅ Restricted to Metadata Updates Only
+  // Financials (Price/Qty) must be updated via addExecution
   stop_loss?: number;
   target?: number;
   notes?: string;

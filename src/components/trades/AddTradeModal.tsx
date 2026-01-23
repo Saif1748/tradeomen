@@ -1,4 +1,3 @@
-// src/components/trades/AddTradeModal.tsx
 import { useState, useMemo } from "react";
 import { Spinner, CheckCircle, Warning, Article, ChartLine, ListDashes } from "@phosphor-icons/react";
 import { toast } from "sonner";
@@ -37,7 +36,6 @@ const AddTradeModal = ({ open, onOpenChange }: AddTradeModalProps) => {
   const [type, setType] = useState<InstrumentType>("STOCK");
   
   // Executions (List)
-  // Initialize with one empty execution
   const [executions, setExecutions] = useState<ExecutionItem[]>([
     {
       id: "init-1",
@@ -61,7 +59,6 @@ const AddTradeModal = ({ open, onOpenChange }: AddTradeModalProps) => {
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
 
   // === Derived State ===
-  // Estimate direction from the first execution for UI consistency
   const primarySide: TradeSide = executions[0]?.side === "BUY" ? "LONG" : "SHORT";
   const primaryPrice = executions[0]?.price || ""; 
 
@@ -98,10 +95,8 @@ const AddTradeModal = ({ open, onOpenChange }: AddTradeModalProps) => {
       if (!ex.quantity || parseFloat(ex.quantity) <= 0) errors.push(`Execution #${idx + 1}: Invalid Quantity`);
     });
 
-    // Validate Stop Loss / Target relative to First Entry
     const entry = parseFloat(primaryPrice);
     const sl = parseFloat(stopLoss);
-    // const tgt = parseFloat(target); // Target validation is less strict usually
 
     if (entry > 0 && sl > 0) {
       if (primarySide === "LONG" && sl >= entry) errors.push("Stop Loss must be below entry for Longs");
@@ -123,17 +118,17 @@ const AddTradeModal = ({ open, onOpenChange }: AddTradeModalProps) => {
     setIsSubmitting(true);
 
     try {
-      // 1. Sort Executions Chronologically to ensure correct PnL calculation
+      // 1. Sort Executions Chronologically
       const sortedExecs = [...executions].sort((a, b) => a.date.getTime() - b.date.getTime());
       
       const firstExec = sortedExecs[0];
       const remainingExecs = sortedExecs.slice(1);
 
-      // 2. Prepare First Execution Payload (Creates the Trade Container)
+      // 2. Prepare First Execution Payload
+      // Note: 'direction' is REMOVED (Backend infers it from initial_execution.side)
       const initialPayload: CreateTradeInput = {
         symbol: symbol.toUpperCase(),
         instrument_type: type,
-        direction: firstExec.side === "BUY" ? "LONG" : "SHORT", 
         
         stop_loss: parseFloat(stopLoss) || undefined,
         target: parseFloat(target) || undefined,
@@ -153,12 +148,10 @@ const AddTradeModal = ({ open, onOpenChange }: AddTradeModalProps) => {
       // 3. Create Trade
       const newTrade = await tradesApi.create(initialPayload);
 
-      // 4. Chain Remaining Executions (if any)
+      // 4. Chain Remaining Executions SEQUENTIALLY
+      // Using a for-loop ensures sequential processing to avoid PnL race conditions in the DB
       if (remainingExecs.length > 0) {
-        // We execute these sequentially or in parallel. Parallel is usually fine for DB, 
-        // but sequential ensures `recalculate_trade_state` runs in cleaner order if backend doesn't lock.
-        // Using Promise.all for speed, relying on backend timestamp sorting.
-        await Promise.all(remainingExecs.map(ex => {
+        for (const ex of remainingExecs) {
             const execPayload: ExecutionCreate = {
                 execution_time: ex.date.toISOString(),
                 side: ex.side,
@@ -166,8 +159,8 @@ const AddTradeModal = ({ open, onOpenChange }: AddTradeModalProps) => {
                 quantity: parseFloat(ex.quantity),
                 fees: parseFloat(ex.fees) || 0
             };
-            return tradesApi.addExecution(newTrade.id, execPayload);
-        }));
+            await tradesApi.addExecution(newTrade.id, execPayload);
+        }
       }
 
       // 5. Upload Screenshots
@@ -178,7 +171,6 @@ const AddTradeModal = ({ open, onOpenChange }: AddTradeModalProps) => {
       // 6. Success & Cleanup
       toast.success(`Trade logged with ${executions.length} executions`);
       
-      // Invalidate relevant queries
       queryClient.invalidateQueries({ queryKey: ["trades"] });
       queryClient.invalidateQueries({ queryKey: ["dashboard-stats"] });
       

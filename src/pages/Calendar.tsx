@@ -4,6 +4,7 @@ import { setMonth, setYear, getMonth, getYear } from "date-fns";
 import DashboardLayout from "@/components/dashboard/DashboardLayout";
 import PageHeader from "@/components/dashboard/PageHeader";
 import CalendarGrid from "@/components/calendar/CalendarGrid";
+import DayDetailModal from "@/components/calendar/DayDetailModal"; // ✅ Corrected Import Name
 import { Button } from "@/components/ui/button";
 import {
   Select,
@@ -15,7 +16,7 @@ import {
 import { cn } from "@/lib/utils";
 
 // Hooks
-import { useCalendar } from "@/hooks/use-calendar";
+import { useCalendar, CalendarDayStats } from "@/hooks/use-calendar";
 import { useCurrency } from "@/hooks/use-currency";
 
 const Calendar = () => {
@@ -25,7 +26,11 @@ const Calendar = () => {
   const [colorMode, setColorMode] = useState<'pnl' | 'winrate'>('pnl');
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
-  // Fetch efficient SQL stats (Now returns a Record/Object, not a Map)
+  // State for Day Details Modal
+  const [selectedDayStats, setSelectedDayStats] = useState<CalendarDayStats | null>(null);
+  const [isDetailOpen, setIsDetailOpen] = useState(false);
+
+  // Fetch efficient SQL stats
   const { data: monthDataMap, isLoading } = useCalendar(currentDate);
   
   // Currency Settings
@@ -40,8 +45,7 @@ const Calendar = () => {
     "July", "August", "September", "October", "November", "December"
   ];
 
-  // ✅ FIX: Efficient Object Aggregation
-  // Replaced Map.values() with Object.values() to prevent TypeErrors
+  // Efficient Object Aggregation
   const monthStats = useMemo(() => {
     if (isLoading || !monthDataMap) {
       return { monthlyPnL: 0, winRate: 0, totalTrades: 0, tradingDays: 0 };
@@ -52,7 +56,6 @@ const Calendar = () => {
     let totalWins = 0;
     let tradingDays = 0;
 
-    // Iterate over the plain object values
     const days = Object.values(monthDataMap);
     
     for (const dayStat of days) {
@@ -79,9 +82,14 @@ const Calendar = () => {
   const handleMonthSelect = (m: string) => setCurrentDate(setMonth(currentDate, months.indexOf(m)));
   const handleYearSelect = (y: string) => setCurrentDate(setYear(currentDate, parseInt(y)));
 
+  // Handler for opening the day detail modal
+  const handleDayClick = (stats: CalendarDayStats) => {
+    setSelectedDayStats(stats);
+    setIsDetailOpen(true);
+  };
+
   const formatPnL = (value: number) => {
     const sign = value >= 0 ? '+' : '';
-    // Format number using global currency settings
     return `${sign}${symbol}${formatCurrency(Math.abs(value))}`;
   };
 
@@ -93,9 +101,9 @@ const Calendar = () => {
         onMobileMenuOpen={() => setMobileMenuOpen(true)}
       />
 
-      <div className="px-4 sm:px-6 lg:px-8 pb-6 pt-4 space-y-4 sm:space-y-6">
+      <div className="px-4 sm:px-6 lg:px-8 pb-6 pt-4 space-y-4 sm:space-y-6 h-[calc(100vh-100px)] flex flex-col">
         {/* Monthly Stats Cards */}
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-4">
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-4 shrink-0">
           <div className="glass-card p-3 sm:p-5 rounded-xl sm:rounded-2xl">
             <span className="text-[10px] sm:text-sm text-muted-foreground block mb-0.5 sm:mb-1">Monthly P&L</span>
             <span className={cn(
@@ -126,8 +134,8 @@ const Calendar = () => {
         </div>
 
         {/* Calendar Container */}
-        <div className="glass-card p-3 sm:p-6 rounded-xl sm:rounded-2xl">
-          <div className="flex flex-col xl:flex-row items-center justify-between gap-4 mb-4 sm:mb-6">
+        <div className="glass-card p-3 sm:p-6 rounded-xl sm:rounded-2xl flex-1 flex flex-col min-h-0">
+          <div className="flex flex-col xl:flex-row items-center justify-between gap-4 mb-4 sm:mb-6 shrink-0">
             
             {/* Navigation & Selectors */}
             <div className="flex flex-wrap items-center justify-center sm:justify-start gap-2 w-full xl:w-auto">
@@ -171,21 +179,31 @@ const Calendar = () => {
           </div>
 
           {/* Legend */}
-          <div className="hidden sm:flex items-center gap-4 text-xs text-muted-foreground mb-4">
+          <div className="hidden sm:flex items-center gap-4 text-xs text-muted-foreground mb-4 shrink-0">
             <div className="flex items-center gap-1.5"><div className="w-3 h-3 rounded-sm bg-emerald-500/30" /><span>Profit</span></div>
             <div className="flex items-center gap-1.5"><div className="w-3 h-3 rounded-sm bg-rose-500/30" /><span>Loss</span></div>
             <div className="flex items-center gap-1.5"><div className="w-3 h-3 rounded-sm bg-muted/30" /><span>No Trades</span></div>
           </div>
 
-          {/* Grid - Passes the Record directly */}
-          <CalendarGrid
-            year={currentDate.getFullYear()}
-            month={currentDate.getMonth()}
-            monthData={monthDataMap}
-            colorMode={colorMode}
-          />
+          {/* Grid */}
+          <div className="flex-1 min-h-0">
+            <CalendarGrid
+              currentMonth={currentDate}
+              data={monthDataMap || {}}
+              colorMode={colorMode}
+              isLoading={isLoading}
+              onDayClick={handleDayClick}
+            />
+          </div>
         </div>
       </div>
+
+      {/* ✅ Corrected Modal Component */}
+      <DayDetailModal
+        isOpen={isDetailOpen} // Note: Prop name depends on your DayDetailModal implementation (isOpen vs open)
+        onClose={() => setIsDetailOpen(false)}
+        dayData={selectedDayStats}
+      />
     </DashboardLayout>
   );
 };

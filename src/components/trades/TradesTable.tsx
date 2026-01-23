@@ -4,7 +4,8 @@ import {
   CaretDown, 
   PencilSimple, 
   Trash, 
-  DotsThreeVertical 
+  DotsThreeVertical,
+  Eye // Added Eye icon for clarity in menu if needed, though mostly for row click
 } from "@phosphor-icons/react";
 import { format } from "date-fns";
 import { UITrade } from "@/hooks/use-trades";
@@ -29,9 +30,9 @@ import { useCurrency } from "@/hooks/use-currency";
 interface TradesTableProps {
   trades: UITrade[];
   isLoading: boolean;
+  onView: (trade: UITrade) => void; // ✅ New Prop: View Details
   onEdit: (trade: UITrade) => void;
   onDelete: (id: string) => void;
-  // Sorting props (optional but good to keep if you use them)
   sortField?: string;
   sortDirection?: "asc" | "desc";
   onSort?: (field: string) => void;
@@ -40,6 +41,7 @@ interface TradesTableProps {
 const TradesTable = ({
   trades,
   isLoading,
+  onView,
   onEdit,
   onDelete,
   sortField,
@@ -124,7 +126,8 @@ const TradesTable = ({
                 return (
                   <TableRow
                     key={trade.id}
-                    className="border-border/50 hover:bg-primary/5 transition-colors group"
+                    onClick={() => onView(trade)} // ✅ Click row to view details
+                    className="border-border/50 hover:bg-primary/5 transition-colors group cursor-pointer"
                   >
                     <TableCell className="text-muted-foreground whitespace-nowrap text-sm">
                       {format(trade.date, "MMM d, yyyy")}
@@ -179,7 +182,8 @@ const TradesTable = ({
                     </TableCell>
 
                     {/* Actions Menu */}
-                    <TableCell>
+                    <TableCell onClick={(e) => e.stopPropagation()}> 
+                      {/* ✅ Stop Propagation so clicking menu doesn't open details sheet */}
                       <DropdownMenu>
                         <DropdownMenuTrigger asChild>
                           <Button variant="ghost" className="h-8 w-8 p-0 opacity-0 group-hover:opacity-100 transition-opacity">
@@ -187,6 +191,9 @@ const TradesTable = ({
                           </Button>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end" className="bg-background/95 backdrop-blur-xl border-white/10">
+                          <DropdownMenuItem onClick={() => onView(trade)} className="text-xs font-medium cursor-pointer">
+                            <Eye className="mr-2 h-3.5 w-3.5" /> View Details
+                          </DropdownMenuItem>
                           <DropdownMenuItem onClick={() => onEdit(trade)} className="text-xs font-medium cursor-pointer">
                             <PencilSimple className="mr-2 h-3.5 w-3.5" /> Edit Metadata
                           </DropdownMenuItem>
@@ -211,7 +218,8 @@ const TradesTable = ({
           return (
             <div
               key={trade.id}
-              className="glass-card px-4 py-3 rounded-xl border border-border/50 active:scale-[0.98] transition-all hover:bg-secondary/30"
+              onClick={() => onView(trade)} // ✅ Click card to view details
+              className="glass-card px-4 py-3 rounded-xl border border-border/50 active:scale-[0.98] transition-all hover:bg-secondary/30 cursor-pointer"
             >
               <div className="flex items-center justify-between mb-2">
                 <div className="flex items-center gap-2 min-w-0">
@@ -230,21 +238,26 @@ const TradesTable = ({
                     <span className={`text-lg font-bold tabular-nums ${!isLoss ? "text-emerald-500" : "text-rose-500"}`}>
                         {!isLoss ? "+" : ""}{symbol}{formatCurrency(Math.abs(trade.pnl || 0))}
                     </span>
-                    <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                            <Button variant="ghost" size="sm" className="h-6 w-6 p-0">
-                                <DotsThreeVertical className="h-4 w-4 text-muted-foreground" />
-                            </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end" className="bg-background/95 backdrop-blur-xl border-white/10">
-                            <DropdownMenuItem onClick={() => onEdit(trade)}>
-                                <PencilSimple className="mr-2 h-3.5 w-3.5" /> Edit
-                            </DropdownMenuItem>
-                            <DropdownMenuItem onClick={() => onDelete(trade.id)} className="text-rose-500">
-                                <Trash className="mr-2 h-3.5 w-3.5" /> Delete
-                            </DropdownMenuItem>
-                        </DropdownMenuContent>
-                    </DropdownMenu>
+                    <div onClick={(e) => e.stopPropagation()}>
+                        <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                                <Button variant="ghost" size="sm" className="h-6 w-6 p-0">
+                                    <DotsThreeVertical className="h-4 w-4 text-muted-foreground" />
+                                </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end" className="bg-background/95 backdrop-blur-xl border-white/10">
+                                <DropdownMenuItem onClick={() => onView(trade)}>
+                                    <Eye className="mr-2 h-3.5 w-3.5" /> View
+                                </DropdownMenuItem>
+                                <DropdownMenuItem onClick={() => onEdit(trade)}>
+                                    <PencilSimple className="mr-2 h-3.5 w-3.5" /> Edit
+                                </DropdownMenuItem>
+                                <DropdownMenuItem onClick={() => onDelete(trade.id)} className="text-rose-500">
+                                    <Trash className="mr-2 h-3.5 w-3.5" /> Delete
+                                </DropdownMenuItem>
+                            </DropdownMenuContent>
+                        </DropdownMenu>
+                    </div>
                 </div>
               </div>
               

@@ -1,58 +1,58 @@
-import { useState, useMemo } from "react";
-import { format, startOfWeek, endOfWeek, eachDayOfInterval, isSameMonth, isSameDay } from "date-fns";
-import { CalendarDayStats } from "@/hooks/use-calendar";
+import { useMemo } from "react";
+import { 
+  format, 
+  startOfWeek, 
+  endOfWeek, 
+  eachDayOfInterval, 
+  isSameMonth, 
+  isSameDay, 
+  startOfMonth, 
+  endOfMonth 
+} from "date-fns";
+import { Spinner } from "@phosphor-icons/react";
 import CalendarDayCell from "./CalendarDayCell";
-import DayDetailModal from "./DayDetailModal";
+import { CalendarDayStats } from "@/hooks/use-calendar";
 import { useIsMobile } from "@/hooks/use-mobile";
 
 interface CalendarGridProps {
-  year: number;
-  month: number;
-  // ✅ FIX: Expect a plain object, not a Map. This matches the serialized data from the hook.
-  monthData: Record<string, CalendarDayStats> | undefined;
+  // ✅ FIX: Use 'currentMonth' (Date object) instead of separate numbers
+  currentMonth: Date;
+  // ✅ FIX: Expect a plain object/Record
+  data: Record<string, CalendarDayStats> | undefined;
   colorMode: 'pnl' | 'winrate';
+  // ✅ FIX: Handler passed from parent (Calendar.tsx manages the modal now)
+  onDayClick: (stats: CalendarDayStats) => void;
+  isLoading?: boolean;
 }
 
 const WEEKDAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 const WEEKDAYS_SHORT = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
 
-const CalendarGrid = ({ year, month, monthData, colorMode }: CalendarGridProps) => {
-  const [selectedDay, setSelectedDay] = useState<CalendarDayStats | null>(null);
-  const [isModalOpen, setIsModalOpen] = useState(false);
+const CalendarGrid = ({ currentMonth, data, colorMode, onDayClick, isLoading }: CalendarGridProps) => {
   const isMobile = useIsMobile();
   const today = new Date();
 
   // ✅ INDUSTRY GRADE: Robust 42-day grid generation using date-fns
-  // This replaces the manual loops which can be buggy with month rollovers.
   const calendarDays = useMemo(() => {
-    // 1. Find the first day of the month
-    const monthStart = new Date(year, month, 1);
-    
-    // 2. Find the Sunday before (or on) the first day
+    const monthStart = startOfMonth(currentMonth);
+    const monthEnd = endOfMonth(monthStart);
     const startDate = startOfWeek(monthStart);
-    
-    // 3. Generate exactly 42 days (6 weeks) to keep the grid height stable
-    // (start date + 41 days)
-    const endDate = endOfWeek(new Date(startDate.getTime() + 41 * 24 * 60 * 60 * 1000));
+    const endDate = endOfWeek(monthEnd);
 
+    // This usually generates 35 or 42 days depending on the month
     return eachDayOfInterval({ start: startDate, end: endDate });
-  }, [year, month]);
+  }, [currentMonth]);
 
   // Helper to ensure keys match SQL format (YYYY-MM-DD)
   const getDateKey = (date: Date) => format(date, 'yyyy-MM-dd');
 
-  const handleDayClick = (date: Date, isCurrentMonth: boolean) => {
-    if (!isCurrentMonth || !monthData) return;
-    
-    const dateKey = getDateKey(date);
-    // ✅ FIX: Access property directly (O(1) lookup) instead of .get()
-    const dayData = monthData[dateKey];
-
-    if (dayData) {
-      setSelectedDay(dayData);
-      setIsModalOpen(true);
-    }
-  };
+  if (isLoading) {
+    return (
+      <div className="h-full w-full flex items-center justify-center min-h-[300px]">
+        <Spinner className="w-8 h-8 animate-spin text-primary" />
+      </div>
+    );
+  }
 
   return (
     <>
@@ -71,36 +71,28 @@ const CalendarGrid = ({ year, month, monthData, colorMode }: CalendarGridProps) 
       {/* Calendar Grid */}
       <div className="grid grid-cols-7 gap-1 sm:gap-2">
         {calendarDays.map((date) => {
-          const isCurrentMonth = isSameMonth(date, new Date(year, month, 1));
+          const isCurrentMonth = isSameMonth(date, currentMonth);
           const dateKey = getDateKey(date);
           
-          // ✅ FIX: Safe Object Access
+          // ✅ FIX: Safe Object Access (O(1) Lookup)
           // We only look up data if it's the current month
-          const data = (isCurrentMonth && monthData) 
-            ? monthData[dateKey] || null 
-            : null;
+          const dayData = (isCurrentMonth && data) ? data[dateKey] : null;
 
           return (
             <CalendarDayCell
               key={dateKey} // Using date string as key is better for React diffing
               day={date.getDate()}
               date={date}
-              dayData={data}
+              dayData={dayData}
               isCurrentMonth={isCurrentMonth}
               isToday={isSameDay(date, today)}
               colorMode={colorMode}
-              onClick={() => handleDayClick(date, isCurrentMonth)}
+              // ✅ Trigger parent handler instead of local state
+              onClick={() => dayData && onDayClick(dayData)}
             />
           );
         })}
       </div>
-
-      {/* Day Detail Modal */}
-      <DayDetailModal
-        isOpen={isModalOpen}
-        onClose={() => setIsModalOpen(false)}
-        dayData={selectedDay}
-      />
     </>
   );
 };

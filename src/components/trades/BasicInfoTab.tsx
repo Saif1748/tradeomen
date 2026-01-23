@@ -1,10 +1,9 @@
 // src/components/trades/BasicInfoTab.tsx
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { 
   Plus, 
   Trash, 
   CalendarBlank, 
-  Clock, 
   TrendUp, 
   TrendDown 
 } from "@phosphor-icons/react";
@@ -25,7 +24,6 @@ import {
 } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
 import { cn } from "@/lib/utils";
-import { tradeTypes } from "@/lib/tradesData";
 import { InstrumentType, ExecutionSide } from "@/services/api/types";
 import { format } from "date-fns";
 
@@ -47,6 +45,9 @@ interface BasicInfoTabProps {
   executions: ExecutionItem[];
   setExecutions: (val: ExecutionItem[]) => void;
 }
+
+// ✅ FIX: Explicitly define valid backend Enums to prevent casing errors
+const VALID_INSTRUMENTS: InstrumentType[] = ["STOCK", "CRYPTO", "FOREX", "FUTURES"];
 
 // === Date Picker Helper ===
 const DateTimePicker = ({ 
@@ -184,7 +185,8 @@ const BasicInfoTab = ({
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              {tradeTypes.map((t) => (
+              {/* ✅ FIX: Use local VALID_INSTRUMENTS instead of tradeTypes to ensure Uppercase */}
+              {VALID_INSTRUMENTS.map((t) => (
                 <SelectItem key={t} value={t}>{t}</SelectItem>
               ))}
             </SelectContent>

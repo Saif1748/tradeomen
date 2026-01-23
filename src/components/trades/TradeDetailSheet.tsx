@@ -13,8 +13,10 @@ import {
   Tag,
   Note,
   Image,
-  ArrowRight,
+  Plus,
   Spinner,
+  TrendUp,
+  TrendDown
 } from "@phosphor-icons/react";
 import { format, formatDistance } from "date-fns";
 import { useQuery } from "@tanstack/react-query";
@@ -31,15 +33,16 @@ import { Separator } from "@/components/ui/separator";
 import { UITrade } from "@/hooks/use-trades";
 import { tradesApi } from "@/services/api/modules/trades";
 import { useCurrency } from "@/hooks/use-currency";
+import { Execution } from "@/services/api/types";
 
-// Extended shape from backend (includes sensitive fields decrypted)
+// Extended shape from backend
 interface TradeDetailResponse {
   id: string;
   notes?: string;
   encrypted_notes?: string;
   screenshots_signed?: Array<{ path: string; url: string }>;
   strategies?: { name: string; emoji?: string };
-  // ... other fields are usually handled by the list view model
+  executions?: Execution[]; // ✅ Added Executions
 }
 
 interface TradeDetailSheetProps {
@@ -47,6 +50,7 @@ interface TradeDetailSheetProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onEdit: (trade: UITrade) => void;
+  onAddExecution: (trade: UITrade) => void; // ✅ New Handler
   onDelete: (trade: UITrade) => void;
   allTrades?: UITrade[];
 }
@@ -56,12 +60,13 @@ const TradeDetailSheet = ({
   open,
   onOpenChange,
   onEdit,
+  onAddExecution,
   onDelete,
   allTrades = [],
 }: TradeDetailSheetProps) => {
   const { format: formatCurrency, symbol } = useCurrency();
 
-  // --- 1. Fetch Full Details (Notes & Signed Screenshots) ---
+  // --- 1. Fetch Full Details ---
   const { data: fullDetails, isLoading } = useQuery({
     queryKey: ["trade", trade?.id],
     queryFn: async () => {
@@ -70,17 +75,16 @@ const TradeDetailSheet = ({
       return res as unknown as TradeDetailResponse;
     },
     enabled: !!trade && open,
-    staleTime: 1000 * 60 * 5, // 5 minutes
+    staleTime: 1000 * 60 * 5, 
   });
 
   if (!trade) return null;
 
   // --- Dynamic Calculations ---
-  // Note: We use the UI model (UITrade) for financials as it's already normalized
   const entryPrice = trade.entryPrice;
   const stopLoss = trade.stopLoss || 0;
   const target = trade.target || 0;
-  const quantity = Math.abs(trade.quantity); // Use absolute for display
+  const quantity = Math.abs(trade.quantity);
 
   const riskPerShare = stopLoss ? Math.abs(entryPrice - stopLoss) : 0;
   const rewardPerShare = target ? Math.abs(target - entryPrice) : 0;
@@ -88,24 +92,22 @@ const TradeDetailSheet = ({
   const rrRatio = riskPerShare > 0 ? (rewardPerShare / riskPerShare) : 0;
   const totalRisk = riskPerShare * quantity;
 
-  // Safe date handling
   const tradeDate = trade.date instanceof Date ? trade.date : new Date(trade.date);
   const timeLabel = formatDistance(tradeDate, new Date(), { addSuffix: true });
 
-  // Find related trades (same symbol)
   const relatedTrades = allTrades
     .filter((t) => t.symbol === trade.symbol && t.id !== trade.id)
     .slice(0, 3);
 
-  // --- Resolve Data for Display ---
   const displayNotes = fullDetails?.notes || fullDetails?.encrypted_notes || "";
   const signedScreenshots = fullDetails?.screenshots_signed || [];
+  const executions = fullDetails?.executions || [];
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent 
         side="right" 
-        className="w-full sm:w-[420px] p-0 border-l border-border bg-card shadow-2xl"
+        className="w-full sm:w-[480px] p-0 border-l border-border bg-card shadow-2xl"
       >
         <SheetHeader className="sr-only">
           <SheetTitle>Trade Details</SheetTitle>
@@ -113,7 +115,8 @@ const TradeDetailSheet = ({
         
         <ScrollArea className="h-full">
           <div className="p-6 space-y-6">
-            {/* Header */}
+            
+            {/* Header Area */}
             <div className="flex items-start justify-between">
               <div>
                 <div className="flex items-center gap-3">
@@ -128,16 +131,35 @@ const TradeDetailSheet = ({
                   >
                     {trade.side}
                   </Badge>
+                  {trade.status === "OPEN" && (
+                    <Badge variant="secondary" className="bg-blue-500/10 text-blue-400 border-blue-500/20">
+                      OPEN
+                    </Badge>
+                  )}
                 </div>
                 <p className="text-xs text-muted-foreground mt-1 font-medium">
                   {format(tradeDate, "EEEE, MMMM d, yyyy • HH:mm")}
                 </p>
               </div>
+              
+              {/* Actions */}
               <div className="flex items-center gap-1">
+                {trade.status === "OPEN" && (
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="text-muted-foreground hover:text-blue-400 h-8 w-8"
+                    title="Add Execution"
+                    onClick={() => onAddExecution(trade)}
+                  >
+                    <Plus weight="bold" className="w-4 h-4" />
+                  </Button>
+                )}
                 <Button
                   variant="ghost"
                   size="icon"
                   className="text-muted-foreground hover:text-foreground h-8 w-8"
+                  title="Edit Trade"
                   onClick={() => onEdit(trade)}
                 >
                   <PencilSimple weight="regular" className="w-4 h-4" />
@@ -146,6 +168,7 @@ const TradeDetailSheet = ({
                   variant="ghost"
                   size="icon"
                   className="text-muted-foreground hover:text-rose-400 h-8 w-8"
+                  title="Delete Trade"
                   onClick={() => onDelete(trade)}
                 >
                   <Trash weight="regular" className="w-4 h-4" />
@@ -173,6 +196,59 @@ const TradeDetailSheet = ({
               </p>
             </div>
 
+            {/* Executions History (New Section) */}
+            <div className="space-y-3">
+              <h4 className="text-sm font-semibold text-foreground flex items-center gap-2">
+                Execution History
+                <span className="px-1.5 py-0.5 rounded bg-secondary text-[10px] text-muted-foreground">
+                  {executions.length}
+                </span>
+              </h4>
+              
+              <div className="glass-card rounded-xl border border-border/40 bg-card/50 overflow-hidden">
+                {isLoading ? (
+                   <div className="p-4 flex items-center justify-center text-xs text-muted-foreground">
+                      <Spinner className="animate-spin mr-2" /> Loading history...
+                   </div>
+                ) : executions.length > 0 ? (
+                  <div className="divide-y divide-border/30">
+                    {executions.map((ex) => (
+                      <div key={ex.id} className="flex items-center justify-between p-3 hover:bg-white/5 transition-colors">
+                        <div className="flex items-center gap-3">
+                          <div className={`p-1.5 rounded-md ${
+                            ex.side === "BUY" ? "bg-emerald-500/10 text-emerald-400" : "bg-rose-500/10 text-rose-400"
+                          }`}>
+                            {ex.side === "BUY" ? <TrendUp className="w-3.5 h-3.5" /> : <TrendDown className="w-3.5 h-3.5" />}
+                          </div>
+                          <div>
+                            <div className="flex items-center gap-2">
+                              <span className={`text-xs font-bold ${ex.side === "BUY" ? "text-emerald-400" : "text-rose-400"}`}>
+                                {ex.side}
+                              </span>
+                              <span className="text-xs text-foreground font-medium">
+                                {ex.quantity} @ {symbol}{formatCurrency(ex.price)}
+                              </span>
+                            </div>
+                            <span className="text-[10px] text-muted-foreground">
+                              {format(new Date(ex.execution_time), "MMM d, HH:mm")}
+                            </span>
+                          </div>
+                        </div>
+                        <div className="text-right">
+                           <span className="text-[10px] text-muted-foreground block">Fees</span>
+                           <span className="text-xs font-medium text-foreground">{symbol}{ex.fees}</span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="p-4 text-center text-xs text-muted-foreground">
+                    No executions found.
+                  </div>
+                )}
+              </div>
+            </div>
+
             {/* Price Levels Card */}
             <div className="glass-card p-4 rounded-xl space-y-0 border border-border/40 bg-card/50">
               <div className="flex items-center justify-between py-3">
@@ -180,24 +256,10 @@ const TradeDetailSheet = ({
                   <div className="p-2 rounded-lg bg-emerald-500/10">
                     <ArrowUp weight="regular" className="w-4 h-4 text-emerald-400" />
                   </div>
-                  <span className="text-sm text-muted-foreground font-medium">Entry</span>
+                  <span className="text-sm text-muted-foreground font-medium">Avg. Price</span>
                 </div>
                 <span className="font-semibold text-foreground">
                   {symbol}{formatCurrency(trade.entryPrice)}
-                </span>
-              </div>
-
-              <Separator className="bg-border/50" />
-
-              <div className="flex items-center justify-between py-3">
-                <div className="flex items-center gap-3">
-                  <div className="p-2 rounded-lg bg-rose-500/10">
-                    <ArrowDown weight="regular" className="w-4 h-4 text-rose-400" />
-                  </div>
-                  <span className="text-sm text-muted-foreground font-medium">Exit</span>
-                </div>
-                <span className="font-semibold text-foreground">
-                  {trade.exitPrice ? `${symbol}${formatCurrency(trade.exitPrice)}` : "-"}
                 </span>
               </div>
 
@@ -263,35 +325,9 @@ const TradeDetailSheet = ({
                   <div className="p-2 rounded-lg bg-primary/10">
                     <ChartLineUp weight="regular" className="w-4 h-4 text-primary" />
                   </div>
-                  <span className="text-sm text-muted-foreground font-medium">Quantity</span>
+                  <span className="text-sm text-muted-foreground font-medium">Net Quantity</span>
                 </div>
                 <span className="font-semibold text-foreground">{quantity}</span>
-              </div>
-
-              <Separator className="bg-border/50" />
-
-              <div className="flex items-center justify-between py-3">
-                <div className="flex items-center gap-3">
-                  <div className="p-2 rounded-lg bg-primary/10">
-                    <Clock weight="regular" className="w-4 h-4 text-primary" />
-                  </div>
-                  <span className="text-sm text-muted-foreground font-medium">Entry Time</span>
-                </div>
-                <span className="font-semibold text-foreground">{timeLabel}</span>
-              </div>
-
-              <Separator className="bg-border/50" />
-
-              <div className="flex items-center justify-between py-3">
-                <div className="flex items-center gap-3">
-                  <div className="p-2 rounded-lg bg-primary/10">
-                    <CurrencyDollar weight="regular" className="w-4 h-4 text-primary" />
-                  </div>
-                  <span className="text-sm text-muted-foreground font-medium">Fees</span>
-                </div>
-                <span className="font-semibold text-foreground">
-                  {symbol}{formatCurrency(trade.fees)}
-                </span>
               </div>
             </div>
 
@@ -378,7 +414,6 @@ const TradeDetailSheet = ({
                   <h4 className="text-sm font-semibold text-foreground">
                     Related Trades ({trade.symbol})
                   </h4>
-                  {/* Optional: Add Link to filter by symbol */}
                 </div>
                 <div className="space-y-2">
                   {relatedTrades.map((relatedTrade) => (

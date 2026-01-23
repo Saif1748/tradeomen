@@ -75,7 +75,6 @@ const Trades = () => {
     isLoading, 
     isError, 
     isPlaceholderData,
-    createTrade, 
     updateTrade, 
     deleteTrade,
   } = useTrades({ page, limit: pageSize });
@@ -97,11 +96,15 @@ const Trades = () => {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   // --- 3. Modals & Selection ---
-  const [selectedTrade, setSelectedTrade] = useState<UITrade | null>(null);
+  // ✅ Separate state for viewing vs editing to avoid conflicts
+  const [viewingTrade, setViewingTrade] = useState<UITrade | null>(null);
   const [detailOpen, setDetailOpen] = useState(false);
+  
   const [addModalOpen, setAddModalOpen] = useState(false);
-  const [editModalOpen, setEditModalOpen] = useState(false);
+  
   const [tradeToEdit, setTradeToEdit] = useState<UITrade | null>(null);
+  const [editModalOpen, setEditModalOpen] = useState(false);
+  
   const [filterSheetOpen, setFilterSheetOpen] = useState(false);
 
   // ✅ Import State
@@ -115,7 +118,6 @@ const Trades = () => {
       result = result.filter(t => t.date >= dateRange.from!);
     }
     if (dateRange?.to) {
-       // Set end of day for 'to' date to include trades on that day
        const endOfDay = new Date(dateRange.to);
        endOfDay.setHours(23, 59, 59, 999);
        result = result.filter(t => t.date <= endOfDay);
@@ -177,27 +179,36 @@ const Trades = () => {
     }
   };
 
-  const handleTradeClick = (trade: UITrade) => {
-    // Navigate to detail view or open sheet (keeping sheet logic for now)
-    // In future: navigate(`/trades/${trade.id}`)
-    // For now, we assume Edit Modal is the primary interaction for modification
-    setTradeToEdit(trade);
-    setEditModalOpen(true);
+  // ✅ Handler: View Trade Details
+  const handleViewTrade = (trade: UITrade) => {
+    setViewingTrade(trade);
+    setDetailOpen(true);
   };
 
+  // ✅ Handler: Edit Trade
   const handleEditTrade = (trade: UITrade) => {
     setTradeToEdit(trade);
-    setDetailOpen(false);
+    setDetailOpen(false); // Close view sheet if open
     setEditModalOpen(true);
   };
 
-  // ✅ Updated Update Handler using correct types
+  // ✅ Handler: Add Execution (From Details Sheet)
+  const handleAddExecution = (trade: UITrade) => {
+    // For now, inform user. Ideally, open a dedicated "Add Execution" modal 
+    // pre-filled with this trade ID. 
+    // We can reuse AddTradeModal but strictly for executions if we refactor it,
+    // or create a new dedicated modal.
+    toast.info("Add Execution feature coming in next update!");
+    setDetailOpen(false);
+  };
+
+  // ✅ Updated Update Handler
   const handleUpdateTrade = (payload: { id: string; data: UpdateTradeInput }) => {
     if (!tradeToEdit) return;
     updateTrade(payload, {
         onSuccess: () => {
             setEditModalOpen(false);
-            setDetailOpen(false);
+            // setDetailOpen(false); // Optional: keep open if viewing
         }
     });
   };
@@ -212,7 +223,7 @@ const Trades = () => {
 
   // ✅ Import Handlers
   const handleImportFile = (file: File) => {
-    setImportFile(file); // Store the file object to trigger the modal
+    setImportFile(file); 
   };
 
   const handleImportImage = (file: File) => {
@@ -220,8 +231,8 @@ const Trades = () => {
   };
 
   const handleImportComplete = (count: number, skipped: number) => {
-    setImportFile(null); // Close modal
-    window.location.reload(); // Simple brute force refresh to see new trades immediately
+    setImportFile(null); 
+    window.location.reload(); 
   };
 
   const handleExport = async () => {
@@ -372,6 +383,7 @@ const Trades = () => {
                 <TradesTable
                     trades={filteredTrades}
                     isLoading={isLoading}
+                    onView={handleViewTrade} // ✅ FIX: Passed the handler here
                     onEdit={handleEditTrade}
                     onDelete={handleDeleteTrade}
                 />
@@ -517,15 +529,15 @@ const Trades = () => {
 
       {/* --- MODALS --- */}
 
-      {/* Note: TradeDetailSheet is deprecated for direct editing but kept for view details logic if needed */}
-      {selectedTrade && (
+      {viewingTrade && (
         <TradeDetailSheet
-            trade={selectedTrade as any}
+            trade={viewingTrade}
             open={detailOpen}
             onOpenChange={setDetailOpen}
             onEdit={handleEditTrade}
-            onDelete={() => handleDeleteTrade(selectedTrade.id)}
-            allTrades={trades as any[]}
+            onAddExecution={handleAddExecution} // ✅ Passed handler
+            onDelete={() => handleDeleteTrade(viewingTrade.id)}
+            allTrades={trades}
         />
       )}
 
@@ -541,8 +553,6 @@ const Trades = () => {
         onUpdateTrade={handleUpdateTrade}
       />
 
-      {/* ✅ Wired Up Import Preview Modal */}
-      {/* Note: We pass open based on whether importFile is set */}
       <ImportPreviewModal
         open={!!importFile}
         onOpenChange={(open) => {
