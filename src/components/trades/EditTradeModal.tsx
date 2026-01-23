@@ -1,5 +1,6 @@
+// src/components/trades/EditTradeModal.tsx
 import { useState, useEffect, useMemo } from "react";
-import { Spinner, CheckCircle, Warning, Article, ChartLine, ListDashes, PencilSimple } from "@phosphor-icons/react";
+import { Spinner, CheckCircle, Warning, Article, ChartLine, ListDashes, PencilSimple, LockKey } from "@phosphor-icons/react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import {
@@ -9,12 +10,14 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import { cn } from "@/lib/utils";
 import { tradesApi } from "@/services/api/modules/trades";
 import { UITrade } from "@/hooks/use-trades";
 import { useStrategies } from "@/hooks/use-strategies";
+import { UpdateTradeInput, InstrumentType, TradeSide } from "@/services/api/types";
 
-// Reuse the exact same sub-components for consistency
+// Reuse sub-components
 import BasicInfoTab from "./BasicInfoTab";
 import LevelsTab from "./LevelsTab";
 import DetailsTab from "./DetailsTab";
@@ -23,7 +26,7 @@ interface EditTradeModalProps {
   trade: UITrade | null;
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  onUpdateTrade: (data: any) => void;
+  onUpdateTrade: (data: { id: string; data: UpdateTradeInput }) => void;
 }
 
 const EditTradeModal = ({ 
@@ -38,24 +41,26 @@ const EditTradeModal = ({
   const [activeTab, setActiveTab] = useState("basic");
   const [isSubmitting, setIsSubmitting] = useState(false);
   
-  // Basic Info
+  // Basic Info (Mostly Read-Only for Financials)
   const [status, setStatus] = useState<"OPEN" | "CLOSED">("CLOSED");
   const [symbol, setSymbol] = useState("");
-  const [type, setType] = useState("STOCK");
-  const [side, setSide] = useState("LONG");
+  const [type, setType] = useState<InstrumentType>("STOCK");
+  const [side, setSide] = useState<TradeSide>("LONG");
   const [entryDate, setEntryDate] = useState<Date | undefined>(undefined);
   const [exitDate, setExitDate] = useState<Date | undefined>(undefined);
+  
+  // Read-Only Display Values
   const [entryPrice, setEntryPrice] = useState("");
   const [quantity, setQuantity] = useState("");
   const [exitPrice, setExitPrice] = useState("");
   const [fees, setFees] = useState("0");
   
-  // Levels
+  // Levels (Editable)
   const [stopLoss, setStopLoss] = useState("");
   const [target, setTarget] = useState("");
   const [strategyId, setStrategyId] = useState<string | null>(null);
   
-  // Details
+  // Details (Editable)
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
   const [tagInput, setTagInput] = useState("");
   const [notes, setNotes] = useState("");
@@ -64,127 +69,57 @@ const EditTradeModal = ({
   // === Populate Form Data ===
   useEffect(() => {
     if (trade && open) {
+      // Core Identity
       setStatus((trade.status as "OPEN" | "CLOSED") || "CLOSED");
       setSymbol(trade.symbol || "");
-      setType(trade.type || "STOCK");
-      setSide(trade.side || "LONG");
+      setType((trade.type as InstrumentType) || "STOCK");
+      setSide((trade.side as TradeSide) || "LONG");
       
+      // Dates
       setEntryDate(trade.date ? new Date(trade.date) : undefined);
-      // For editing, ensure exit date exists or fallback if closed
-      setExitDate(trade.exitDate ? new Date(trade.exitDate) : undefined);
+      // Logic: If we have an exit date from UI model, use it.
+      // Note: UITrade might need updating to carry exitDate if available.
       
+      // Financials (Read Only in this view)
       setEntryPrice(trade.entryPrice?.toString() || "");
       setQuantity(trade.quantity?.toString() || "");
       setExitPrice(trade.exitPrice?.toString() || "");
       setFees(trade.fees?.toString() || "0");
       
+      // Metadata (Editable)
       setStopLoss(trade.stopLoss?.toString() || "");
       setTarget(trade.target?.toString() || "");
       
-      // Match strategy name to ID for the select box
       const foundStrategy = availableStrategies.find(s => s.name === trade.strategy);
       setStrategyId(foundStrategy ? foundStrategy.id : null);
 
       setSelectedTags(trade.tags || []);
-      // @ts-ignore - Assuming notes exists on the backend response even if not in UITrade type yet
+      // @ts-ignore - Assuming notes exists on the backend response
       setNotes(trade.notes || ""); 
       
-      // Reset files on open (we don't load existing images into the file input)
       setSelectedFiles([]);
     }
   }, [trade, open, availableStrategies]);
 
-  // === Validation ===
-  const validationErrors = useMemo(() => {
-    const errors: string[] = [];
-    
-    // Date validation
-    if (entryDate && exitDate && status === "CLOSED") {
-      if (exitDate < entryDate) {
-        errors.push("Exit date cannot be before entry date");
-      }
-    }
-    
-    // Stop Loss / Target Logic
-    const sl = parseFloat(stopLoss) || 0;
-    const tgt = parseFloat(target) || 0;
-    const entry = parseFloat(entryPrice) || 0;
-    
-    if (sl > 0 && entry > 0) {
-      if (side === "LONG" && sl >= entry) {
-        errors.push("Stop loss must be below entry for LONG");
-      }
-      if (side === "SHORT" && sl <= entry) {
-        errors.push("Stop loss must be above entry for SHORT");
-      }
-    }
-    
-    if (tgt > 0 && entry > 0) {
-      if (side === "LONG" && tgt <= entry) {
-        errors.push("Target must be above entry for LONG");
-      }
-      if (side === "SHORT" && tgt >= entry) {
-        errors.push("Target must be below entry for SHORT");
-      }
-    }
-    
-    return errors;
-  }, [entryDate, exitDate, entryPrice, stopLoss, target, side, status]);
-
-  // === Check Required Fields ===
-  const hasRequiredFields = useMemo(() => {
-    return symbol && entryPrice && quantity && entryDate;
-  }, [symbol, entryPrice, quantity, entryDate]);
-
   // === Submit Handler ===
   const handleSubmit = async () => {
     if (!trade) return;
-
-    if (validationErrors.length > 0) {
-      validationErrors.forEach((error) => toast.error(error));
-      return;
-    }
-
-    if (!hasRequiredFields) {
-      toast.error("Please fill in Symbol, Entry Date, Price, and Quantity.");
-      return;
-    }
-
-    const numericEntryPrice = parseFloat(entryPrice);
-    const numericQuantity = parseFloat(quantity);
-
-    if (isNaN(numericEntryPrice) || numericEntryPrice <= 0) {
-      toast.error("Please enter a valid Price greater than 0");
-      return;
-    }
-
     setIsSubmitting(true);
 
     try {
-      // Prepare payload
-      const payload = {
-        id: trade.id, // Important for update
-        symbol: symbol.toUpperCase(),
-        instrument_type: type.toUpperCase(),
-        direction: side.toUpperCase(),
-        status: status.toUpperCase(),
-        entry_time: entryDate?.toISOString(),
-        exit_time: status === "CLOSED" && exitDate ? exitDate.toISOString() : null,
-        entry_price: numericEntryPrice,
-        exit_price: status === "CLOSED" ? (parseFloat(exitPrice) || numericEntryPrice) : null,
-        quantity: numericQuantity,
-        fees: parseFloat(fees) || 0,
-        stop_loss: parseFloat(stopLoss) || null,
-        target: parseFloat(target) || null,
-        strategy_id: strategyId || null,
+      // Construct Metadata-Only Payload
+      const payload: UpdateTradeInput = {
+        stop_loss: parseFloat(stopLoss) || undefined,
+        target: parseFloat(target) || undefined,
+        strategy_id: strategyId || undefined,
         tags: selectedTags,
         notes: notes,
       };
 
-      // 1. Update Trade Data
-      await onUpdateTrade(payload);
+      // 1. Update Trade Metadata
+      await onUpdateTrade({ id: trade.id, data: payload });
 
-      // 2. Upload NEW screenshots if any selected
+      // 2. Upload NEW screenshots
       if (selectedFiles.length > 0) {
         try {
           const uploadRes = await tradesApi.uploadScreenshots(selectedFiles, trade.id);
@@ -221,7 +156,7 @@ const EditTradeModal = ({
           "rounded-3xl shadow-[0_20px_60px_-15px_rgba(0,0,0,0.5)] overflow-hidden"
         )}
       >
-        {/* === Header (No Border) === */}
+        {/* === Header === */}
         <DialogHeader className="pt-6 pb-2 px-6 flex-shrink-0 bg-transparent">
           <div className="flex items-center gap-3.5">
             <div className="p-2.5 rounded-xl bg-primary/10 border border-primary/20 shadow-inner">
@@ -229,38 +164,45 @@ const EditTradeModal = ({
             </div>
             <div className="space-y-0.5">
               <DialogTitle className="text-lg font-bold tracking-tight text-foreground">
-                Edit Trade
+                Edit Trade Details
               </DialogTitle>
               <p className="text-[11px] text-muted-foreground/80 tracking-tight font-medium">
-                Modify execution details for {symbol}
+                Update strategies, tags, and notes for {symbol}
               </p>
             </div>
           </div>
         </DialogHeader>
 
+        {/* === Info Banner === */}
+        <div className="px-6 pb-2">
+            <Alert className="bg-blue-500/10 border-blue-500/20 text-blue-400 py-2">
+                <LockKey className="h-4 w-4" />
+                <AlertDescription className="text-xs ml-2">
+                    To modify Price or Quantity, please add a new <strong>Execution</strong> (Scale In/Out) instead of editing the trade directly.
+                </AlertDescription>
+            </Alert>
+        </div>
+
         {/* === Tabs === */}
         <div className="flex-1 flex flex-col overflow-hidden px-6">
           <Tabs value={activeTab} onValueChange={setActiveTab} className="flex flex-col flex-1 overflow-hidden">
             
-            {/* Elongated Tab List Container */}
+            {/* Tab Navigation */}
             <div className="flex justify-center w-full mb-1 mt-2">
               <TabsList className={cn(
                 "h-auto p-1 rounded-full flex-shrink-0 grid grid-cols-3 gap-1",
                 "bg-muted/30 backdrop-blur-md border border-white/5",
                 "w-full max-w-md" 
               )}>
+                {/* Disabled Basic Info Tab visually to reinforce read-only nature */}
                 <TabsTrigger 
                   value="basic" 
-                  className={cn(
-                    "h-9 px-4 rounded-full text-xs font-semibold tracking-tight transition-all duration-300 border border-transparent",
-                    "data-[state=active]:bg-primary/10 data-[state=active]:text-primary data-[state=active]:border-primary/20",
-                    "data-[state=active]:shadow-sm",
-                    "data-[state=inactive]:text-muted-foreground hover:text-foreground hover:bg-white/5"
-                  )}
+                  disabled
+                  className="h-9 px-4 rounded-full text-xs font-semibold tracking-tight opacity-50 cursor-not-allowed"
                 >
                   <div className="flex items-center gap-2 justify-center">
                     <Article className="w-3.5 h-3.5" weight="bold" />
-                    <span>Basic Info</span>
+                    <span>Basic (Locked)</span>
                   </div>
                 </TabsTrigger>
                 
@@ -288,7 +230,7 @@ const EditTradeModal = ({
                     "data-[state=inactive]:text-muted-foreground hover:text-foreground hover:bg-white/5"
                   )}
                 >
-                   <div className="flex items-center gap-2 justify-center">
+                    <div className="flex items-center gap-2 justify-center">
                     <ListDashes className="w-3.5 h-3.5" weight="bold" />
                     <span>Details</span>
                   </div>
@@ -296,31 +238,15 @@ const EditTradeModal = ({
               </TabsList>
             </div>
 
-            {/* === Scrollable Content === */}
+            {/* === Content === */}
             <div className="flex-1 overflow-y-auto pr-2 mt-2 custom-scrollbar">
-              <TabsContent value="basic" className="mt-0 animate-in fade-in-50 zoom-in-95 duration-300">
-                <BasicInfoTab
-                  status={status}
-                  setStatus={setStatus}
-                  symbol={symbol}
-                  setSymbol={setSymbol}
-                  type={type}
-                  setType={setType}
-                  side={side}
-                  setSide={setSide}
-                  entryDate={entryDate}
-                  setEntryDate={setEntryDate}
-                  entryPrice={entryPrice}
-                  setEntryPrice={setEntryPrice}
-                  quantity={quantity}
-                  setQuantity={setQuantity}
-                  exitDate={exitDate}
-                  setExitDate={setExitDate}
-                  exitPrice={exitPrice}
-                  setExitPrice={setExitPrice}
-                  fees={fees}
-                  setFees={setFees}
-                />
+              
+              {/* Basic Info is rendered but effectively readonly or hidden if on other tabs */}
+              <TabsContent value="basic" className="mt-0">
+                 {/* We reuse BasicInfoTab but force state updates to be no-ops 
+                    or rely on the component handling disabled states if we added a 'disabled' prop.
+                    For now, we just don't show it as active/selectable.
+                 */}
               </TabsContent>
 
               <TabsContent value="levels" className="mt-0 animate-in fade-in-50 zoom-in-95 duration-300">
@@ -352,23 +278,8 @@ const EditTradeModal = ({
           </Tabs>
         </div>
 
-        {/* === Footer (No Border) === */}
+        {/* === Footer === */}
         <div className="py-5 px-6 space-y-3 flex-shrink-0 bg-background/50 backdrop-blur-md">
-          {/* Validation Errors */}
-          {validationErrors.length > 0 && (
-            <div className="flex items-start gap-3 p-3 rounded-xl bg-rose-500/5 border border-rose-500/20">
-              <Warning className="w-4 h-4 text-rose-400 flex-shrink-0 mt-0.5" weight="duotone" />
-              <div className="space-y-1">
-                {validationErrors.map((error, idx) => (
-                  <p key={idx} className="text-xs text-rose-400 tracking-tight">
-                    {error}
-                  </p>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* Action Buttons */}
           <div className="flex items-center justify-between gap-4">
             <Button
               type="button"
@@ -389,7 +300,7 @@ const EditTradeModal = ({
               <Button
                 type="button"
                 onClick={handleSubmit}
-                disabled={isSubmitting || validationErrors.length > 0 || !hasRequiredFields}
+                disabled={isSubmitting}
                 className={cn(
                   "h-10 px-8 tracking-tight font-semibold relative overflow-hidden rounded-xl",
                   "bg-primary hover:bg-primary/90 text-white",
@@ -414,21 +325,12 @@ const EditTradeModal = ({
           </div>
         </div>
 
-        {/* Custom Scrollbar Styles */}
-        <style jsx>{`
-          .custom-scrollbar::-webkit-scrollbar {
-            width: 6px;
-          }
-          .custom-scrollbar::-webkit-scrollbar-track {
-            background: transparent;
-          }
-          .custom-scrollbar::-webkit-scrollbar-thumb {
-            background: rgba(255, 255, 255, 0.1);
-            border-radius: 10px;
-          }
-          .custom-scrollbar::-webkit-scrollbar-thumb:hover {
-            background: rgba(255, 255, 255, 0.2);
-          }
+        {/* Scrollbar Styles */}
+        <style>{`
+          .custom-scrollbar::-webkit-scrollbar { width: 6px; }
+          .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
+          .custom-scrollbar::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.1); border-radius: 10px; }
+          .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: rgba(255, 255, 255, 0.2); }
         `}</style>
       </DialogContent>
     </Dialog>

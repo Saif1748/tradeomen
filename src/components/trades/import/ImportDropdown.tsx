@@ -1,3 +1,4 @@
+// src/components/trades/import/ImportDropdown.tsx
 import { useState, useRef } from 'react';
 import { FileArrowUp, FileCsv, Image, CaretDown } from '@phosphor-icons/react';
 import { Button } from '@/components/ui/button';
@@ -9,8 +10,8 @@ import {
 } from '@/components/ui/dropdown-menu';
 
 interface ImportDropdownProps {
-  onImportCSV: (fileName: string) => void;
-  onImportImage: (fileName: string) => void;
+  onImportCSV: (file: File) => void;     // <--- UPDATED: Expects File object
+  onImportImage: (file: File) => void;   // <--- UPDATED: Expects File object
 }
 
 export const ImportDropdown = ({ onImportCSV, onImportImage }: ImportDropdownProps) => {
@@ -31,15 +32,15 @@ export const ImportDropdown = ({ onImportCSV, onImportImage }: ImportDropdownPro
   const handleCSVChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
-      onImportCSV(file.name);
-      e.target.value = '';
+      onImportCSV(file); // <--- Pass the full File object
+      e.target.value = ''; // Reset so same file can be selected again if needed
     }
   };
 
   const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
-      onImportImage(file.name);
+      onImportImage(file); // <--- Pass the full File object
       e.target.value = '';
     }
   };

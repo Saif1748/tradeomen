@@ -1,3 +1,4 @@
+// src/components/trades/TradeDetailSheet.tsx
 import {
   ArrowUp,
   ArrowDown,
@@ -31,14 +32,14 @@ import { UITrade } from "@/hooks/use-trades";
 import { tradesApi } from "@/services/api/modules/trades";
 import { useCurrency } from "@/hooks/use-currency";
 
-// Define the extended shape expected from the API for details
-// This extends the base type or defines the specific response fields we need
+// Extended shape from backend (includes sensitive fields decrypted)
 interface TradeDetailResponse {
   id: string;
   notes?: string;
+  encrypted_notes?: string;
   screenshots_signed?: Array<{ path: string; url: string }>;
   strategies?: { name: string; emoji?: string };
-  // ... other fields present in TradeResponse
+  // ... other fields are usually handled by the list view model
 }
 
 interface TradeDetailSheetProps {
@@ -65,7 +66,6 @@ const TradeDetailSheet = ({
     queryKey: ["trade", trade?.id],
     queryFn: async () => {
       if (!trade?.id) return null;
-      // We cast the response to our specific Detail interface to avoid 'any'
       const res = await tradesApi.getOne(trade.id);
       return res as unknown as TradeDetailResponse;
     },
@@ -76,10 +76,11 @@ const TradeDetailSheet = ({
   if (!trade) return null;
 
   // --- Dynamic Calculations ---
+  // Note: We use the UI model (UITrade) for financials as it's already normalized
   const entryPrice = trade.entryPrice;
   const stopLoss = trade.stopLoss || 0;
   const target = trade.target || 0;
-  const quantity = trade.quantity;
+  const quantity = Math.abs(trade.quantity); // Use absolute for display
 
   const riskPerShare = stopLoss ? Math.abs(entryPrice - stopLoss) : 0;
   const rewardPerShare = target ? Math.abs(target - entryPrice) : 0;
@@ -91,19 +92,20 @@ const TradeDetailSheet = ({
   const tradeDate = trade.date instanceof Date ? trade.date : new Date(trade.date);
   const timeLabel = formatDistance(tradeDate, new Date(), { addSuffix: true });
 
+  // Find related trades (same symbol)
   const relatedTrades = allTrades
     .filter((t) => t.symbol === trade.symbol && t.id !== trade.id)
     .slice(0, 3);
 
   // --- Resolve Data for Display ---
-  const displayNotes = fullDetails?.notes || (trade as any).notes || "";
+  const displayNotes = fullDetails?.notes || fullDetails?.encrypted_notes || "";
   const signedScreenshots = fullDetails?.screenshots_signed || [];
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent 
         side="right" 
-        className="w-full sm:w-[420px] p-0 border-l border-border bg-card"
+        className="w-full sm:w-[420px] p-0 border-l border-border bg-card shadow-2xl"
       >
         <SheetHeader className="sr-only">
           <SheetTitle>Trade Details</SheetTitle>
@@ -115,7 +117,7 @@ const TradeDetailSheet = ({
             <div className="flex items-start justify-between">
               <div>
                 <div className="flex items-center gap-3">
-                  <h2 className="text-2xl font-medium text-foreground">{trade.symbol}</h2>
+                  <h2 className="text-2xl font-bold tracking-tight text-foreground">{trade.symbol}</h2>
                   <Badge
                     variant="outline"
                     className={`${
@@ -127,8 +129,8 @@ const TradeDetailSheet = ({
                     {trade.side}
                   </Badge>
                 </div>
-                <p className="text-muted-foreground mt-1">
-                  {format(tradeDate, "EEEE, MMMM d, yyyy")}
+                <p className="text-xs text-muted-foreground mt-1 font-medium">
+                  {format(tradeDate, "EEEE, MMMM d, yyyy • HH:mm")}
                 </p>
               </div>
               <div className="flex items-center gap-1">
@@ -160,9 +162,10 @@ const TradeDetailSheet = ({
             </div>
 
             {/* P&L Display */}
-            <div className="text-right">
+            <div className="text-right border-b border-border/40 pb-6">
+              <p className="text-sm text-muted-foreground mb-1">Total P&L</p>
               <p
-                className={`text-3xl font-medium tracking-tight ${
+                className={`text-4xl font-bold tracking-tight ${
                   (trade.pnl || 0) >= 0 ? "text-emerald-400" : "text-rose-400"
                 }`}
               >
@@ -177,9 +180,9 @@ const TradeDetailSheet = ({
                   <div className="p-2 rounded-lg bg-emerald-500/10">
                     <ArrowUp weight="regular" className="w-4 h-4 text-emerald-400" />
                   </div>
-                  <span className="text-muted-foreground">Entry</span>
+                  <span className="text-sm text-muted-foreground font-medium">Entry</span>
                 </div>
-                <span className="font-medium text-foreground">
+                <span className="font-semibold text-foreground">
                   {symbol}{formatCurrency(trade.entryPrice)}
                 </span>
               </div>
@@ -191,9 +194,9 @@ const TradeDetailSheet = ({
                   <div className="p-2 rounded-lg bg-rose-500/10">
                     <ArrowDown weight="regular" className="w-4 h-4 text-rose-400" />
                   </div>
-                  <span className="text-muted-foreground">Exit</span>
+                  <span className="text-sm text-muted-foreground font-medium">Exit</span>
                 </div>
-                <span className="font-medium text-foreground">
+                <span className="font-semibold text-foreground">
                   {trade.exitPrice ? `${symbol}${formatCurrency(trade.exitPrice)}` : "-"}
                 </span>
               </div>
@@ -205,9 +208,9 @@ const TradeDetailSheet = ({
                   <div className="p-2 rounded-lg bg-amber-500/10">
                     <Warning weight="regular" className="w-4 h-4 text-amber-400" />
                   </div>
-                  <span className="text-muted-foreground">Stop Loss</span>
+                  <span className="text-sm text-muted-foreground font-medium">Stop Loss</span>
                 </div>
-                <span className="font-medium text-foreground">
+                <span className="font-semibold text-foreground">
                   {trade.stopLoss ? `${symbol}${formatCurrency(trade.stopLoss)}` : "-"}
                 </span>
               </div>
@@ -219,9 +222,9 @@ const TradeDetailSheet = ({
                   <div className="p-2 rounded-lg bg-primary/10">
                     <Target weight="regular" className="w-4 h-4 text-primary" />
                   </div>
-                  <span className="text-muted-foreground">Target</span>
+                  <span className="text-sm text-muted-foreground font-medium">Target</span>
                 </div>
-                <span className="font-medium text-foreground">
+                <span className="font-semibold text-foreground">
                   {trade.target ? `${symbol}${formatCurrency(trade.target)}` : "-"}
                 </span>
               </div>
@@ -234,9 +237,9 @@ const TradeDetailSheet = ({
                   <div className="p-2 rounded-lg bg-primary/10">
                     <ChartLineUp weight="regular" className="w-4 h-4 text-primary" />
                   </div>
-                  <span className="text-muted-foreground">R : R</span>
+                  <span className="text-sm text-muted-foreground font-medium">R : R</span>
                 </div>
-                <span className="font-medium text-foreground">1 : {rrRatio.toFixed(1)}</span>
+                <span className="font-semibold text-foreground">1 : {rrRatio.toFixed(1)}</span>
               </div>
 
               <Separator className="bg-border/50" />
@@ -246,9 +249,9 @@ const TradeDetailSheet = ({
                   <div className="p-2 rounded-lg bg-primary/10">
                     <CurrencyDollar weight="regular" className="w-4 h-4 text-primary" />
                   </div>
-                  <span className="text-muted-foreground">Total Risk</span>
+                  <span className="text-sm text-muted-foreground font-medium">Total Risk</span>
                 </div>
-                <span className="font-medium text-foreground">
+                <span className="font-semibold text-foreground">
                   {symbol}{formatCurrency(totalRisk)}
                 </span>
               </div>
@@ -260,9 +263,9 @@ const TradeDetailSheet = ({
                   <div className="p-2 rounded-lg bg-primary/10">
                     <ChartLineUp weight="regular" className="w-4 h-4 text-primary" />
                   </div>
-                  <span className="text-muted-foreground">Quantity</span>
+                  <span className="text-sm text-muted-foreground font-medium">Quantity</span>
                 </div>
-                <span className="font-medium text-foreground">{trade.quantity}</span>
+                <span className="font-semibold text-foreground">{quantity}</span>
               </div>
 
               <Separator className="bg-border/50" />
@@ -272,9 +275,9 @@ const TradeDetailSheet = ({
                   <div className="p-2 rounded-lg bg-primary/10">
                     <Clock weight="regular" className="w-4 h-4 text-primary" />
                   </div>
-                  <span className="text-muted-foreground">Entry Time</span>
+                  <span className="text-sm text-muted-foreground font-medium">Entry Time</span>
                 </div>
-                <span className="font-medium text-foreground">{timeLabel}</span>
+                <span className="font-semibold text-foreground">{timeLabel}</span>
               </div>
 
               <Separator className="bg-border/50" />
@@ -284,9 +287,9 @@ const TradeDetailSheet = ({
                   <div className="p-2 rounded-lg bg-primary/10">
                     <CurrencyDollar weight="regular" className="w-4 h-4 text-primary" />
                   </div>
-                  <span className="text-muted-foreground">Fees</span>
+                  <span className="text-sm text-muted-foreground font-medium">Fees</span>
                 </div>
-                <span className="font-medium text-foreground">
+                <span className="font-semibold text-foreground">
                   {symbol}{formatCurrency(trade.fees)}
                 </span>
               </div>
@@ -296,7 +299,7 @@ const TradeDetailSheet = ({
             <div className="glass-card p-4 rounded-xl border border-border/40 bg-card/50">
               <div className="flex items-center gap-2 mb-3">
                 <Note weight="regular" className="w-4 h-4 text-muted-foreground" />
-                <h4 className="text-sm font-medium text-foreground">Trade Notes</h4>
+                <h4 className="text-sm font-semibold text-foreground">Trade Notes</h4>
               </div>
               {isLoading ? (
                 <div className="flex items-center gap-2 text-muted-foreground text-sm">
@@ -313,7 +316,7 @@ const TradeDetailSheet = ({
             <div className="glass-card p-4 rounded-xl border border-border/40 bg-card/50">
               <div className="flex items-center gap-2 mb-3">
                 <Image weight="regular" className="w-4 h-4 text-muted-foreground" />
-                <h4 className="text-sm font-medium text-foreground">Screenshots</h4>
+                <h4 className="text-sm font-semibold text-foreground">Screenshots</h4>
               </div>
               
               {isLoading ? (
@@ -347,7 +350,7 @@ const TradeDetailSheet = ({
             <div className="glass-card p-4 rounded-xl border border-border/40 bg-card/50">
               <div className="flex items-center gap-2 mb-3">
                 <Tag weight="regular" className="w-4 h-4 text-muted-foreground" />
-                <h4 className="text-sm font-medium text-foreground">Strategy & Tags</h4>
+                <h4 className="text-sm font-semibold text-foreground">Strategy & Tags</h4>
               </div>
               <div className="flex flex-wrap gap-2">
                 <Badge
@@ -372,12 +375,10 @@ const TradeDetailSheet = ({
             {relatedTrades.length > 0 && (
               <div className="glass-card p-4 rounded-xl border border-border/40 bg-card/50">
                 <div className="flex items-center justify-between mb-3">
-                  <h4 className="text-sm font-medium text-foreground">
+                  <h4 className="text-sm font-semibold text-foreground">
                     Related Trades ({trade.symbol})
                   </h4>
-                  <Button variant="ghost" size="sm" className="text-xs text-muted-foreground hover:text-foreground gap-1 h-auto p-0">
-                    View All <ArrowRight weight="regular" className="w-3 h-3" />
-                  </Button>
+                  {/* Optional: Add Link to filter by symbol */}
                 </div>
                 <div className="space-y-2">
                   {relatedTrades.map((relatedTrade) => (
@@ -388,7 +389,7 @@ const TradeDetailSheet = ({
                       <div className="flex items-center gap-2">
                         <Badge
                           variant="outline"
-                          className={`text-xs ${
+                          className={`text-[10px] px-1.5 h-5 ${
                             relatedTrade.side === "LONG"
                               ? "border-emerald-500/50 bg-emerald-500/10 text-emerald-400"
                               : "border-rose-500/50 bg-rose-500/10 text-rose-400"
@@ -396,7 +397,7 @@ const TradeDetailSheet = ({
                         >
                           {relatedTrade.side}
                         </Badge>
-                        <span className="text-sm text-muted-foreground">
+                        <span className="text-xs text-muted-foreground">
                           {format(relatedTrade.date, "MMM d")}
                         </span>
                       </div>

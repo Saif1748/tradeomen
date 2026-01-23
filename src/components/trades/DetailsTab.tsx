@@ -1,3 +1,4 @@
+// src/components/trades/DetailsTab.tsx
 import { useRef, useState } from "react";
 import { 
   Plus, 

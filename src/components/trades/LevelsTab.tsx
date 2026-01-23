@@ -1,9 +1,8 @@
+// src/components/trades/LevelsTab.tsx
 import { useMemo } from "react";
 import { 
   Target, 
   ShieldWarning, 
-  TrendUp, 
-  TrendDown, 
   ChartLine,
   Lightbulb,
   Spinner
@@ -20,6 +19,7 @@ import {
 } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
 import { useStrategies } from "@/hooks/use-strategies";
+import { TradeSide } from "@/services/api/types";
 
 interface LevelsTabProps {
   stopLoss: string;
@@ -28,7 +28,7 @@ interface LevelsTabProps {
   setTarget: (value: string) => void;
   strategyId: string | null;
   setStrategyId: (value: string | null) => void;
-  side: string;
+  side: TradeSide; // Updated to strict type
   entryPrice: string;
 }
 
@@ -67,7 +67,17 @@ const LevelsTab = ({
     if (entry === 0 || sl === 0) return null;
     
     const loss = ((sl - entry) / entry) * 100;
-    return side === "LONG" ? loss : -loss;
+    // For LONG: if SL < Entry, loss is negative. 
+    // For SHORT: if SL > Entry, loss is negative (conceptually), but math gives positive diff.
+    // Logic: 
+    // Long: (SL - Entry) / Entry. ex: (90 - 100)/100 = -10%
+    // Short: (Entry - SL) / Entry. ex: (100 - 110)/100 = -10%
+    
+    if (side === "LONG") {
+        return loss;
+    } else {
+        return ((entry - sl) / entry) * 100;
+    }
   }, [entryPrice, stopLoss, side]);
 
   const potentialGain = useMemo(() => {
@@ -75,8 +85,11 @@ const LevelsTab = ({
     const tgt = parseFloat(target) || 0;
     if (entry === 0 || tgt === 0) return null;
     
-    const gain = ((tgt - entry) / entry) * 100;
-    return side === "LONG" ? gain : -gain;
+    if (side === "LONG") {
+        return ((tgt - entry) / entry) * 100;
+    } else {
+        return ((entry - tgt) / entry) * 100;
+    }
   }, [entryPrice, target, side]);
 
   // Quick percentage buttons
@@ -84,6 +97,8 @@ const LevelsTab = ({
     const entry = parseFloat(entryPrice) || 0;
     if (entry === 0) return;
     
+    // Long: Price drops by X%
+    // Short: Price rises by X%
     const multiplier = side === "LONG" ? (1 - percentage / 100) : (1 + percentage / 100);
     setStopLoss((entry * multiplier).toFixed(2));
   };
@@ -92,6 +107,8 @@ const LevelsTab = ({
     const entry = parseFloat(entryPrice) || 0;
     if (entry === 0) return;
     
+    // Long: Price rises by X%
+    // Short: Price drops by X%
     const multiplier = side === "LONG" ? (1 + percentage / 100) : (1 - percentage / 100);
     setTarget((entry * multiplier).toFixed(2));
   };
@@ -170,7 +187,7 @@ const LevelsTab = ({
                   variant="outline"
                   size="sm"
                   onClick={() => applyQuickStopLoss(pct)}
-                  disabled={!entryPrice}
+                  disabled={!entryPrice || parseFloat(entryPrice) <= 0}
                   className={cn(
                     "h-7 px-3 text-xs tracking-tight font-medium rounded-md",
                     "bg-background/50 backdrop-blur-sm border-rose-500/10",
@@ -244,7 +261,7 @@ const LevelsTab = ({
                   variant="outline"
                   size="sm"
                   onClick={() => applyQuickTarget(pct)}
-                  disabled={!entryPrice}
+                  disabled={!entryPrice || parseFloat(entryPrice) <= 0}
                   className={cn(
                     "h-7 px-3 text-xs tracking-tight font-medium rounded-md",
                     "bg-background/50 backdrop-blur-sm border-emerald-500/10",
@@ -332,7 +349,7 @@ const LevelsTab = ({
                 <Spinner className="animate-spin w-4 h-4 mr-2" />
                 <span className="text-xs">Loading strategies...</span>
               </div>
-            ) : availableStrategies.length > 0 ? (
+            ) : availableStrategies && availableStrategies.length > 0 ? (
               availableStrategies.map((strategy) => (
                 <SelectItem 
                   key={strategy.id} 

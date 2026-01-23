@@ -7,7 +7,9 @@ export type PlanTier = "FREE" | "PRO" | "PREMIUM";
 export type InstrumentType = "STOCK" | "CRYPTO" | "FOREX" | "FUTURES";
 export type TradeSide = "LONG" | "SHORT";
 export type TradeStatus = "OPEN" | "CLOSED";
+export type ExecutionSide = "BUY" | "SELL"; // ✅ NEW: For executions
 export type UserRole = "user" | "admin" | "super_admin" | "support";
+
 // ------------------------------------------------------------------
 // User & Auth (SYNCED WITH core.ts)
 // ------------------------------------------------------------------
@@ -51,67 +53,110 @@ export interface UserUsageReport {
 }
 
 // ------------------------------------------------------------------
+// Executions (✅ NEW: Relational Model)
+// ------------------------------------------------------------------
+export interface Execution {
+  id: string;
+  trade_id: string;
+  user_id: string;
+  execution_time: string;
+  side: ExecutionSide;
+  price: number;
+  quantity: number;
+  fees: number;
+  broker_order_id?: string | null;
+  metadata?: Record<string, any>;
+  created_at: string;
+}
+
+export interface ExecutionCreate {
+  execution_time: string;
+  side: ExecutionSide;
+  price: number;
+  quantity: number;
+  fees: number;
+  broker_order_id?: string;
+  metadata?: Record<string, any>;
+}
+
+// ------------------------------------------------------------------
 // Trades (Matches app/schemas/trade_schemas.py)
 // ------------------------------------------------------------------
 export interface Trade {
   id: string;
   user_id: string;
+  
+  // Core Info
   symbol: string;
   instrument_type: InstrumentType;
   direction: TradeSide;
   status: TradeStatus;
-  entry_price: number;
-  quantity: number;
-  exit_price?: number | null;
-  stop_loss?: number | null;
-  target?: number | null;
-  fees: number;
-  pnl?: number | null;
-  entry_time: string;
-  exit_time?: string | null;
+
+  // ✅ Financial State (Calculated Aggregate)
+  avg_price: number;      // WAS: entry_price
+  net_quantity: number;   // WAS: quantity
+  total_pnl: number;      // WAS: pnl
+  total_fees: number;     // WAS: fees
+  
+  start_time: string;     // WAS: entry_time
   created_at: string;
 
   // Metadata
+  stop_loss?: number | null;
+  target?: number | null;
   notes?: string | null;
   encrypted_notes?: string | null; 
   tags?: string[];
   
   // Screenshots
-  screenshots?: string[] | string | null; 
-  encrypted_screenshots?: string[] | string | null; 
-  
+  screenshots?: string[] | null; 
+  // ✅ Signed URLs for secure display
+  screenshots_signed?: { path: string; url: string }[] | null;
+
+  // Relations
   strategy_id?: string | null;
   strategies?: {
     name: string;
     emoji?: string;
   } | null;
   
+  // ✅ The History
+  executions: Execution[];
+  
   metadata?: Record<string, any>;
 }
 
 export interface CreateTradeInput {
+  // Container Info
   symbol: string;
   instrument_type: InstrumentType;
   direction: TradeSide;
-  status: TradeStatus;
-  entry_price: number;
-  quantity: number;
-  entry_time: string;
   
-  // Optional
-  exit_price?: number;
-  exit_time?: string;
+  // Container Targets
   stop_loss?: number;
   target?: number;
-  fees?: number;
+  
+  // Metadata
   notes?: string;
   tags?: string[];
   strategy_id?: string;
+  screenshots?: string[];
   metadata?: Record<string, any>;
-  screenshots?: string[]; 
+
+  // ✅ The Primary Trigger (Instead of flat price/qty)
+  initial_execution: ExecutionCreate;
 }
 
-export interface UpdateTradeInput extends Partial<CreateTradeInput> {}
+export interface UpdateTradeInput {
+  // ✅ Restricted to Metadata Updates Only
+  stop_loss?: number;
+  target?: number;
+  notes?: string;
+  tags?: string[];
+  strategy_id?: string;
+  screenshots?: string[];
+  metadata?: Record<string, any>;
+}
 
 export interface PaginatedTradesResponse {
   data: Trade[];
@@ -203,19 +248,24 @@ export interface ChatResponse {
 // Utilities / Uploads
 // ------------------------------------------------------------------
 export interface UploadResponse {
-  status: string;
-  file_path: string;
-  filename: string;
-  mapping: Record<string, string>;
-  detected_headers: string[];
+  // Matches backend CSVParser.analyze_structure + heuristics
+  headers: string[];
   preview: Record<string, any>[];
-  message: string;
+  mapping: Record<string, string>; // Suggested mapping from backend
+  message?: string;
+  filename?: string;
 }
 
 export interface ImportConfirmSchema {
-  file_path: string;
+  file_path?: string;
   mapping: Record<string, string>;
   session_id?: string;
+}
+
+export interface ImportResult {
+  count: number;
+  skipped: number;
+  errors?: string[];
 }
 
 export interface ScreenshotUploadResponse {

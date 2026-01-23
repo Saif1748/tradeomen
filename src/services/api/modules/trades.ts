@@ -1,9 +1,15 @@
+// src/services/api/modules/trades.ts
 import { request, API_BASE_URL, ApiError } from "../core";
 import { supabase } from "@/integrations/supabase/client";
 import type { 
   Trade, 
+  CreateTradeInput, 
+  UpdateTradeInput, 
+  ExecutionCreate,
   ScreenshotUploadResponse, 
-  TradeScreenshot 
+  TradeScreenshot,
+  UploadResponse,
+  ImportResult
 } from "../types";
 
 export const tradesApi = {
@@ -15,17 +21,29 @@ export const tradesApi = {
 
   /**
    * Create a new trade.
+   * NOW: Requires 'initial_execution' to establish the financial baseline.
    */
-  create: (data: Partial<Trade>) =>
+  create: (data: CreateTradeInput) =>
     request<Trade>("/trades/", {
       method: "POST",
       body: JSON.stringify(data),
     }),
 
   /**
-   * Update an existing trade.
+   * Add a new execution (Scale In/Out).
+   * This triggers the backend recalculation engine to update avg_price, pnl, and status.
    */
-  update: (id: string, data: Partial<Trade>) =>
+  addExecution: (tradeId: string, data: ExecutionCreate) =>
+    request<Trade>(`/trades/${tradeId}/executions`, {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+
+  /**
+   * Update Trade METADATA only (Notes, Tags, Stop Loss).
+   * Does NOT update Price/Qty (use addExecution for that).
+   */
+  update: (id: string, data: UpdateTradeInput) =>
     request<Trade>(`/trades/${id}`, {
       method: "PUT",
       body: JSON.stringify(data),
@@ -60,6 +78,35 @@ export const tradesApi = {
     }
     
     return response.blob();
+  },
+
+  /**
+   * 1. Analyze CSV: Sends file to backend to detect headers & preview rows
+   * Matches Backend: POST /trades/import/analyze
+   */
+  analyzeCsv: (file: File) => {
+    const formData = new FormData();
+    formData.append("file", file);
+    return request<UploadResponse>("/trades/import/analyze", {
+      method: "POST",
+      body: formData,
+    });
+  },
+
+  /**
+   * 2. Confirm Import: Sends file + mapping rules to process and save trades
+   * Matches Backend: POST /trades/import/process
+   */
+  confirmImport: (file: File, mapping: Record<string, string>) => {
+    const formData = new FormData();
+    formData.append("file", file);
+    // Send mapping as a JSON string field so backend can parse it
+    formData.append("mapping", JSON.stringify(mapping));
+    
+    return request<ImportResult>("/trades/import/process", {
+      method: "POST",
+      body: formData,
+    });
   },
 
   /**

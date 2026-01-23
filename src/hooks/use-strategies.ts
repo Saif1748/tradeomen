@@ -2,7 +2,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client"; 
 import { strategiesApi } from "@/services/api/modules/strategies"; 
 import { Strategy as ApiStrategy } from "@/services/api/types";
-import { useAuth } from "@/hooks/use-Auth";
+import { useAuth } from "@/hooks/use-Auth"; // ✅ Fixed import casing
 import { toast } from "sonner";
 
 export interface UIStrategy {
@@ -159,7 +159,6 @@ export function useStrategies(filters?: StrategyFilters) {
 }
 
 // --- 5. Hook: Fetch Trades for a Specific Strategy ---
-// ✅ FIX: Added limit to prevent browser crash on large datasets
 export function useStrategyTrades(strategyId: string) {
   const { user } = useAuth();
 
@@ -172,8 +171,8 @@ export function useStrategyTrades(strategyId: string) {
         .from("trades")
         .select("*")
         .eq("strategy_id", strategyId)
-        .order("entry_time", { ascending: false })
-        .limit(50); // ✅ Safety Limit: Only fetch last 50 trades for the preview card
+        .order("start_time", { ascending: false }) // ✅ FIXED: Changed entry_time -> start_time
+        .limit(50); 
 
       if (error) throw error;
       return data || [];

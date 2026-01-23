@@ -1,3 +1,4 @@
+// src/pages/Trades.tsx
 import { useState, useMemo } from "react";
 import { 
   Plus, 
@@ -9,7 +10,7 @@ import {
   Spinner, 
   CaretLeft, 
   CaretRight,
-  Lock // ✅ Added Lock icon for feature gating
+  Lock 
 } from "@phosphor-icons/react";
 import { DateRange } from "react-day-picker";
 import { format } from "date-fns";
@@ -24,6 +25,10 @@ import TradesTable from "@/components/trades/TradesTable";
 import TradeDetailSheet from "@/components/trades/TradeDetailSheet";
 import AddTradeModal from "@/components/trades/AddTradeModal";
 import EditTradeModal from "@/components/trades/EditTradeModal";
+
+// ✅ Import the new Import components
+import { ImportDropdown } from "@/components/trades/import/ImportDropdown";
+import { ImportPreviewModal } from "@/components/trades/import/ImportPreviewModal";
 
 import {
   DropdownMenu,
@@ -51,12 +56,12 @@ import {
 } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
 
-// ✅ Hooks & API
 import { useTrades, UITrade } from "@/hooks/use-trades";
 import { tradesApi } from "@/services/api/modules/trades";
 import { useCurrency } from "@/hooks/use-currency";
-import { useFeatureAccess } from "@/hooks/useFeatureAccess"; // ✅ Import Feature Access
-import { useModal } from "@/contexts/ModalContext"; // ✅ Import Modal Context
+import { useFeatureAccess } from "@/hooks/useFeatureAccess";
+import { useModal } from "@/contexts/ModalContext";
+import { UpdateTradeInput } from "@/services/api/types";
 
 const Trades = () => {
   // --- 1. Pagination & Data ---
@@ -72,12 +77,10 @@ const Trades = () => {
     isPlaceholderData,
     createTrade, 
     updateTrade, 
-    deleteTrade 
+    deleteTrade,
   } = useTrades({ page, limit: pageSize });
 
   const { symbol, format: formatCurrency } = useCurrency();
-  
-  // ✅ Feature Access Logic
   const { isPro } = useFeatureAccess();
   const { triggerUpgrade } = useModal();
 
@@ -101,6 +104,9 @@ const Trades = () => {
   const [tradeToEdit, setTradeToEdit] = useState<UITrade | null>(null);
   const [filterSheetOpen, setFilterSheetOpen] = useState(false);
 
+  // ✅ Import State
+  const [importFile, setImportFile] = useState<File | null>(null);
+
   // --- 4. Filtering & Sorting ---
   const filteredTrades = useMemo(() => {
     let result = [...trades];
@@ -109,7 +115,10 @@ const Trades = () => {
       result = result.filter(t => t.date >= dateRange.from!);
     }
     if (dateRange?.to) {
-       result = result.filter(t => t.date <= dateRange.to!);
+       // Set end of day for 'to' date to include trades on that day
+       const endOfDay = new Date(dateRange.to);
+       endOfDay.setHours(23, 59, 59, 999);
+       result = result.filter(t => t.date <= endOfDay);
     }
 
     if (searchQuery) {
@@ -169,14 +178,11 @@ const Trades = () => {
   };
 
   const handleTradeClick = (trade: UITrade) => {
-    setSelectedTrade(trade);
-    setDetailOpen(true);
-  };
-
-  const handleAddTrade = (newTrade: any) => {
-    createTrade(newTrade, {
-        onSuccess: () => setAddModalOpen(false)
-    });
+    // Navigate to detail view or open sheet (keeping sheet logic for now)
+    // In future: navigate(`/trades/${trade.id}`)
+    // For now, we assume Edit Modal is the primary interaction for modification
+    setTradeToEdit(trade);
+    setEditModalOpen(true);
   };
 
   const handleEditTrade = (trade: UITrade) => {
@@ -185,9 +191,10 @@ const Trades = () => {
     setEditModalOpen(true);
   };
 
-  const handleUpdateTrade = (updatedTrade: any) => {
+  // ✅ Updated Update Handler using correct types
+  const handleUpdateTrade = (payload: { id: string; data: UpdateTradeInput }) => {
     if (!tradeToEdit) return;
-    updateTrade({ id: tradeToEdit.id, data: updatedTrade }, {
+    updateTrade(payload, {
         onSuccess: () => {
             setEditModalOpen(false);
             setDetailOpen(false);
@@ -195,16 +202,29 @@ const Trades = () => {
     });
   };
 
-  const handleDeleteTrade = (trade: UITrade) => {
+  const handleDeleteTrade = (id: string) => {
     if (window.confirm("Are you sure you want to delete this trade?")) {
-        deleteTrade(trade.id, {
+        deleteTrade(id, {
             onSuccess: () => setDetailOpen(false)
         });
     }
   };
 
+  // ✅ Import Handlers
+  const handleImportFile = (file: File) => {
+    setImportFile(file); // Store the file object to trigger the modal
+  };
+
+  const handleImportImage = (file: File) => {
+    toast.info("Image import coming soon!");
+  };
+
+  const handleImportComplete = (count: number, skipped: number) => {
+    setImportFile(null); // Close modal
+    window.location.reload(); // Simple brute force refresh to see new trades immediately
+  };
+
   const handleExport = async () => {
-    // ✅ Logic: Intercept export for Free users
     if (!isPro) {
       triggerUpgrade("Exporting trade history is a Pro feature.");
       return;
@@ -247,19 +267,27 @@ const Trades = () => {
         onMobileMenuOpen={() => setMobileMenuOpen(true)}
       >
         <div className="hidden sm:flex items-center gap-3">
-            {/* ✅ Export Button: Conditionally rendered with Lock or Export icon */}
-            <Button
-                variant="outline"
-                className="gap-2 bg-secondary/50 border-border/50 hover:bg-secondary transition-all"
-                onClick={handleExport}
-            >
-                {isPro ? (
-                  <Export weight="regular" className="w-4 h-4" />
-                ) : (
-                  <Lock weight="bold" className="w-4 h-4 text-muted-foreground" />
-                )}
-                <span className={!isPro ? "text-muted-foreground" : ""}>Export</span>
-            </Button>
+            {/* ✅ Import/Export Group */}
+            <div className="flex gap-2">
+              <Button
+                  variant="outline"
+                  className="gap-2 bg-secondary/50 border-border/50 hover:bg-secondary transition-all"
+                  onClick={handleExport}
+              >
+                  {isPro ? (
+                    <Export weight="regular" className="w-4 h-4" />
+                  ) : (
+                    <Lock weight="bold" className="w-4 h-4 text-muted-foreground" />
+                  )}
+                  <span className={!isPro ? "text-muted-foreground" : ""}>Export</span>
+              </Button>
+
+              {/* ✅ Import Dropdown */}
+              <ImportDropdown 
+                onImportCSV={handleImportFile}
+                onImportImage={handleImportImage}
+              />
+            </div>
             
             <Button
                 onClick={() => setAddModalOpen(true)}
@@ -270,6 +298,7 @@ const Trades = () => {
             </Button>
         </div>
 
+        {/* Mobile Actions */}
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button variant="outline" size="icon" className="sm:hidden bg-secondary/50 border-border/50">
@@ -278,11 +307,6 @@ const Trades = () => {
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="bg-card border-border">
             <DropdownMenuItem onClick={handleExport}>
-              {isPro ? (
-                 <Export weight="regular" className="w-4 h-4 mr-2" />
-              ) : (
-                 <Lock weight="bold" className="w-4 h-4 mr-2 text-muted-foreground" />
-              )}
               Export CSV
             </DropdownMenuItem>
           </DropdownMenuContent>
@@ -305,7 +329,7 @@ const Trades = () => {
 
         {(!isLoading || isPlaceholderData) && !isError && (
             <>
-                <TradesStatsCards trades={filteredTrades as any[]} />
+                <TradesStatsCards trades={filteredTrades} />
 
                 {/* Filters - Desktop */}
                 <div className="hidden sm:block">
@@ -346,66 +370,66 @@ const Trades = () => {
                 </div>
 
                 <TradesTable
-                    trades={filteredTrades as any[]}
-                    onTradeClick={handleTradeClick}
-                    sortField={sortField}
-                    sortDirection={sortDirection}
-                    onSort={handleSort}
+                    trades={filteredTrades}
+                    isLoading={isLoading}
+                    onEdit={handleEditTrade}
+                    onDelete={handleDeleteTrade}
                 />
 
-                {/* ✅ Professional Pagination Controls */}
-                <div className="flex flex-col sm:flex-row items-center justify-between gap-4 border-t border-border/50 pt-4">
-                  <div className="flex items-center gap-4 order-2 sm:order-1">
-                    <div className="text-sm text-muted-foreground">
-                      Showing {filteredTrades.length} of {totalTrades} trades
-                    </div>
-                    
-                    {/* ✅ Rows per page selector */}
-                    <div className="flex items-center gap-2">
-                      <span className="text-sm text-muted-foreground hidden sm:inline">Rows:</span>
-                      <Select value={pageSize.toString()} onValueChange={handlePageSizeChange}>
-                        <SelectTrigger className="h-8 w-[70px] bg-secondary/50 border-border/50">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="25">25</SelectItem>
-                          <SelectItem value="50">50</SelectItem>
-                          <SelectItem value="100">100</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-                  </div>
-
-                  <div className="flex items-center gap-2 order-1 sm:order-2">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => setPage((p) => Math.max(1, p - 1))}
-                      disabled={page === 1 || isPlaceholderData}
-                      className="h-8 gap-1 pl-2.5"
-                    >
-                      <CaretLeft className="h-4 w-4" />
-                      Prev
-                    </Button>
-                    
-                    <div className="flex items-center justify-center px-3 h-8 rounded-md bg-secondary/30 border border-border/50">
-                      <span className="text-sm font-medium tabular-nums">
-                        {page} <span className="text-muted-foreground mx-1">/</span> {totalPages}
-                      </span>
+                {/* Pagination Controls */}
+                {totalTrades > pageSize && (
+                  <div className="flex flex-col sm:flex-row items-center justify-between gap-4 border-t border-border/50 pt-4">
+                    <div className="flex items-center gap-4 order-2 sm:order-1">
+                      <div className="text-sm text-muted-foreground">
+                        Showing {filteredTrades.length} of {totalTrades} trades
+                      </div>
+                      
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm text-muted-foreground hidden sm:inline">Rows:</span>
+                        <Select value={pageSize.toString()} onValueChange={handlePageSizeChange}>
+                          <SelectTrigger className="h-8 w-[70px] bg-secondary/50 border-border/50">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="25">25</SelectItem>
+                            <SelectItem value="50">50</SelectItem>
+                            <SelectItem value="100">100</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
                     </div>
 
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => setPage((p) => (p < totalPages ? p + 1 : p))}
-                      disabled={page >= totalPages || isPlaceholderData}
-                      className="h-8 gap-1 pr-2.5"
-                    >
-                      Next
-                      <CaretRight className="h-4 w-4" />
-                    </Button>
+                    <div className="flex items-center gap-2 order-1 sm:order-2">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setPage((p) => Math.max(1, p - 1))}
+                        disabled={page === 1 || isPlaceholderData}
+                        className="h-8 gap-1 pl-2.5"
+                      >
+                        <CaretLeft className="h-4 w-4" />
+                        Prev
+                      </Button>
+                      
+                      <div className="flex items-center justify-center px-3 h-8 rounded-md bg-secondary/30 border border-border/50">
+                        <span className="text-sm font-medium tabular-nums">
+                          {page} <span className="text-muted-foreground mx-1">/</span> {totalPages}
+                        </span>
+                      </div>
+
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setPage((p) => (p < totalPages ? p + 1 : p))}
+                        disabled={page >= totalPages || isPlaceholderData}
+                        className="h-8 gap-1 pr-2.5"
+                      >
+                        Next
+                        <CaretRight className="h-4 w-4" />
+                      </Button>
+                    </div>
                   </div>
-                </div>
+                )}
             </>
         )}
       </div>
@@ -418,7 +442,7 @@ const Trades = () => {
         <Plus weight="bold" className="w-6 h-6" />
       </button>
 
-      {/* Filter Sheet, Detail Sheet & Modals */}
+      {/* Filter Sheet */}
       <Sheet open={filterSheetOpen} onOpenChange={setFilterSheetOpen}>
         <SheetContent side="bottom" className="bg-card border-border rounded-t-2xl">
           <SheetHeader className="pb-4">
@@ -453,7 +477,6 @@ const Trades = () => {
                 </PopoverContent>
               </Popover>
             </div>
-            
             <div className="space-y-2">
               <label className="text-sm text-muted-foreground">Side</label>
               <Select value={sideFilter} onValueChange={setSideFilter}>
@@ -467,7 +490,6 @@ const Trades = () => {
                 </SelectContent>
               </Select>
             </div>
-
             <div className="space-y-2">
               <label className="text-sm text-muted-foreground">Type</label>
               <Select value={typeFilter} onValueChange={setTypeFilter}>
@@ -483,7 +505,6 @@ const Trades = () => {
                 </SelectContent>
               </Select>
             </div>
-
             <Button 
               className="w-full glow-button text-white mt-4" 
               onClick={() => setFilterSheetOpen(false)}
@@ -494,27 +515,44 @@ const Trades = () => {
         </SheetContent>
       </Sheet>
 
-      <TradeDetailSheet
-        trade={selectedTrade as any}
-        open={detailOpen}
-        onOpenChange={setDetailOpen}
-        onEdit={handleEditTrade}
-        onDelete={handleDeleteTrade}
-        allTrades={trades as any[]}
-      />
+      {/* --- MODALS --- */}
+
+      {/* Note: TradeDetailSheet is deprecated for direct editing but kept for view details logic if needed */}
+      {selectedTrade && (
+        <TradeDetailSheet
+            trade={selectedTrade as any}
+            open={detailOpen}
+            onOpenChange={setDetailOpen}
+            onEdit={handleEditTrade}
+            onDelete={() => handleDeleteTrade(selectedTrade.id)}
+            allTrades={trades as any[]}
+        />
+      )}
 
       <AddTradeModal
         open={addModalOpen}
         onOpenChange={setAddModalOpen}
-        onAddTrade={handleAddTrade}
       />
 
       <EditTradeModal
-        trade={tradeToEdit as any}
+        trade={tradeToEdit}
         open={editModalOpen}
         onOpenChange={setEditModalOpen}
         onUpdateTrade={handleUpdateTrade}
       />
+
+      {/* ✅ Wired Up Import Preview Modal */}
+      {/* Note: We pass open based on whether importFile is set */}
+      <ImportPreviewModal
+        open={!!importFile}
+        onOpenChange={(open) => {
+          if (!open) setImportFile(null);
+        }}
+        fileName={importFile?.name || ""}
+        fileObject={importFile || undefined}
+        onImportComplete={handleImportComplete}
+      />
+
     </DashboardLayout>
   );
 };
